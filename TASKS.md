@@ -61,7 +61,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
 
 - [x] **T9 Sign-off.** Only when the user says so: run `/signoff`.
 
-- [ ] **T10 Light, dark and system theme.**
+- [x] **T10 Light, dark and system theme.**
   A 3-state toggle (Light, Dark, System) in the header, default System. Choice saved in `localStorage` (`spec-studio-theme`) and applied by an inline script before first paint (SPEC §11). Tokens for both themes; the dark look stays and a designed light theme is added. WCAG AA in both themes for text, badges, focus rings and the coverage meter. Playwright screenshots capture both themes. Log the no-library choice in DECISIONS.md.
   *Done when:* every screen (home, interview, generating, result, history, error states, sign-in, sign-up) is checked in both themes at 375px and desktop; contrast passes AA in both; reduced motion is respected; Vitest or Playwright tests cover toggle sets the attribute, the choice persists after reload, and System follows `prefers-color-scheme` (AC-16, AC-17).
 
