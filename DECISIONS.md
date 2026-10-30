@@ -95,3 +95,25 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 **Decision:** Every function in `src/lib/db/repo.ts` takes `ownerId` and filters on it. `getSpec` and `deleteSpec` return "not found" for another owner's ID, the same as a missing ID.
 **Alternatives:** A query builder wrapper that adds the filter automatically (more abstraction, which CLAUDE.md discourages).
 **Consequence:** The scoping test covers each function. The API layer (T4 and later) must pass the owner from the cookie and never from the request body.
+
+## 2026-10-30: Owner cookie is required on API routes, and a missing cookie is a 401
+**Context:** `src/proxy.ts` sets `ss_owner` on the response. The route handler reads the request, so on a first visit with no cookie it cannot see the new owner ID.
+**Decision:** `ownerIdFrom` (`src/lib/api/request.ts`) returns 401 `owner_required` when the cookie is missing or invalid. The browser always has the cookie because the page load sets it first.
+**Alternatives:** Forward the new ID to the route through a request header or request cookie in the proxy; generate a fresh owner in the route (that would orphan the spec from the cookie).
+**Consequence:** A bare `curl` must first load `/` with a cookie jar. Forwarding the cookie from the proxy can come later if API-only clients need it.
+
+## 2026-10-30: Questions can be regenerated only before answers are saved
+**Context:** Answers refer to question IDs. Regenerating questions after answers would make the answers point at questions the user never saw.
+**Decision:** `generateQuestions` accepts status `draft` or `questions_ready` and returns 409 `invalid_state` otherwise. Saving questions clears the stored answers.
+**Alternatives:** Keep answers and match them by question text; allow regeneration at any time.
+**Consequence:** To change questions after answering, the user starts a new request. The UI (T6) must offer that path.
+
+## 2026-10-30: The questions endpoint does not check the daily cap yet
+**Context:** SPEC §10 counts questions as one LLM run against `DAILY_LLM_RUN_LIMIT`. The `usage` table and the 429 path are part of T5.
+**Decision:** T4 calls the LLM with no cap check. T5 adds the cap to both LLM routes at once, so the logic is written once.
+**Alternatives:** Build the cap now with a separate counter, which would be replaced in T5.
+**Consequence:** Until T5 lands, the endpoints are not rate limited. Do not expose them publicly before T5.
+
+## Problem: Neon tables missing on first request
+**What happened:** The first `POST /api/specs` returned 500. The log showed Postgres code `42P01` (undefined table). The migration had never been applied to the Neon dev database.
+**Fix:** Ran `npm run db:migrate` with `.env.local` loaded (`node --env-file=.env.local`). Errors now log only the error name and Postgres code. Driver messages are not logged, because Drizzle puts the SQL and its parameters, including the user's request, into them.

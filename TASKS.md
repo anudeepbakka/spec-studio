@@ -19,7 +19,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   Drizzle schema + migration for `specs` and `usage` (SPEC §5). Repository functions. Anonymous owner cookie (`ss_owner`, httpOnly UUID) set by middleware.
   *Done when:* tests (or a script against a local/Neon DB) cover create, get, list, delete scoped by owner; one owner cannot read another's spec.
 
-- [ ] **T4 Prompts and clarifying questions endpoint.**
+- [x] **T4 Prompts and clarifying questions endpoint.**
   `src/lib/prompts/` (versioned, SPEC §9). `POST /api/specs`, `POST /api/specs/:id/questions`, `PUT /api/specs/:id/answers`.
   *Done when:* endpoints work with a real provider key; invalid input returns typed 400 errors; questions pass the Zod schema.
 

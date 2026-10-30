@@ -2,7 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createSpec, deleteSpec, getSpec, listSpecs, type Db } from "./repo";
+import { createSpec, deleteSpec, getSpec, listSpecs, updateSpec, type Db } from "./repo";
 import * as schema from "./schema";
 
 const OWNER_A = "11111111-1111-4111-8111-111111111111";
@@ -61,5 +61,16 @@ describe("spec repository", () => {
 
     expect(await deleteSpec(db, OWNER_A, row.id)).toBe(true);
     expect(await getSpec(db, OWNER_A, row.id)).toBeNull();
+  });
+
+  it("updates only the owner's spec", async () => {
+    const row = await createSpec(db, OWNER_A, "Update scope");
+
+    expect(await updateSpec(db, OWNER_B, row.id, { status: "failed" })).toBeNull();
+    const updated = await updateSpec(db, OWNER_A, row.id, { status: "failed", errorMessage: "boom" });
+
+    expect(updated?.status).toBe("failed");
+    expect(updated?.errorMessage).toBe("boom");
+    expect((await getSpec(db, OWNER_A, row.id))?.status).toBe("failed");
   });
 });
