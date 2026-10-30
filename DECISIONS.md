@@ -376,3 +376,39 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 ## Problem: A running dev server kept serving the old stylesheet
 **What happened:** During the T10 check, a dev server already running on port 3000 served the pre-change `globals.css` (no `data-theme` rules), so the toggle changed the attribute but the colours did not change. A second `next dev` refused to start because of the lock.
 **How it was fixed:** The change was checked on a production build (`next build`, then `next start` on port 3001). The stale server was left alone, since it was not started for this task. Restarting the dev server clears this.
+
+## 2026-10-31: Better Auth with a route gate, and no email anywhere
+**Context:** SPEC §17 asks for username and password accounts with no email, no verification and no password reset. Better Auth is the stack choice in SPEC §3.
+**Decision:** Better Auth 1.7 with the username plugin and the Drizzle adapter, database sessions. Each account gets the placeholder `<username>@users.invalid`. Only four library routes are reachable (`get-session`, `sign-in/username`, `sign-up/email`, `sign-out`). The gate in `src/app/api/auth/[...all]` blocks every other path, so reset and verification routes that ship with the library stay unreachable. The same gate applies the rate limits and returns the generic sign-in error.
+**Alternatives:** Auth.js (built around email providers); exposing every library route and relying on configuration (a reset route would then be one config change away); a hand-written password store (SPEC §17 forbids custom cryptography).
+**Consequence:** Upgrading Better Auth must re-check the allowlist in `src/lib/auth/gate.ts`. Sign-up and sign-in rate limits live in the database, so they are best effort across instances.
+
+## 2026-10-31: Specs are scoped by user or guest, and usage by subject
+**Context:** A signed-in user must see their specs on any device, and a guest must not see a user's specs. Usage counters were keyed by the guest cookie.
+**Decision:** `Owner` is either `{ kind: "guest", ownerId }` or `{ kind: "user", userId, ownerId }` (`src/lib/owner/scope.ts`). A user's scope is `user_id = userId`. A guest's scope is `owner_id = cookie AND user_id IS NULL`. Usage is keyed by `subject` (`guest:<owner_id>` or `user:<user_id>`). Better Auth ids are text, so `specs.user_id` is text.
+**Alternatives:** A uuid `user_id` (Better Auth ids are not uuids by default); one scope for both kinds (a guest could then see a claimed spec).
+**Consequence:** Every repository function takes an `Owner`. Tests use `{ kind: "guest" }` owners.
+
+## 2026-10-31: The usage migration is written by hand
+**Context:** `drizzle-kit generate` asks an interactive question when a column changes (owner_id to subject), which cannot be answered in a non-TTY shell.
+**Decision:** The change is split into `0002_accounts` (generated, no prompt) and `0003_usage_subject` (hand-written). `0003` rewrites existing rows to `guest:<owner_id>` before dropping the old column. Its snapshot was derived by hand from `0002`.
+**Alternatives:** Dropping the usage table (loses counts); running generate in a TTY (not possible in this shell).
+**Consequence:** Check the `0003` snapshot if `drizzle-kit generate` ever reports unexpected changes to `usage`.
+
+## 2026-10-31: The global call budget is reserved before every provider request
+**Context:** The LLM client calls `onRequest` before every provider attempt, including fallbacks and repairs (SPEC §8). The per-spec cap is already reserved there.
+**Decision:** `specCallReservation` reserves one spec call, then one unit of `GLOBAL_DAILY_LLM_CALL_BUDGET`. When the budget is used up, it returns 429 `demo_capacity` before any provider is contacted.
+**Alternatives:** Count per spec (does not limit total spend); reserve after the call (a provider call would already be charged).
+**Consequence:** A refusal on the per-spec cap still leaves the budget unchanged, but a refusal on the budget leaves the spec count one higher. Both refusals happen before any provider call.
+
+## Problem: Date parameters inside raw SQL fail on Postgres
+**What happened:** The rate limiter passed `Date` objects into `sql` templates. Unit tests on PGlite accepted them, but Neon's driver failed with `ERR_INVALID_ARG_TYPE`, so every sign-up returned a 500.
+**How it was fixed:** The raw SQL now takes ISO strings with an explicit `::timestamptz` cast. Drizzle's typed columns still take `Date` objects.
+
+## Problem: Dynamic pages must opt in under cache components
+**What happened:** `next.config.ts` enables `cacheComponents`. The new not-found, sign-in, sign-up and privacy pages read headers through the header component, so the production build tried to prerender them and failed.
+**How it was fixed:** Those pages call `connection()` and export `instant = false`, as the home page already does.
+
+## Problem: End-to-end sign-up is slower than the default expect timeout
+**What happened:** A sign-up takes about 6 seconds against Neon (password hashing plus several writes), and the page then loads the home page. The 15-second expect timeout was too short for the sign-up test on some runs.
+**How it was fixed:** `playwright.config.ts` sets the expect timeout to 45 seconds. The e2e run also creates one account per run, and the account is deleted by the last test.

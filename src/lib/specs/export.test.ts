@@ -1,3 +1,4 @@
+import type { Owner } from "@/lib/owner/scope";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -9,7 +10,7 @@ import { sampleSpec } from "../../test/sample-spec";
 import { exportFilename, exportMarkdown } from "./export";
 import { createDraft, type SpecDeps } from "./service";
 
-const OWNER_A = "11111111-1111-4111-8111-111111111111";
+const OWNER_A: Owner = { kind: "guest", ownerId: "11111111-1111-4111-8111-111111111111" };
 let deps: SpecDeps;
 
 beforeEach(async () => {
@@ -17,7 +18,7 @@ beforeEach(async () => {
   const instance = drizzle(client, { schema });
   await migrate(instance, { migrationsFolder: "./drizzle" });
   const db = instance as unknown as Db;
-  deps = { db, llm: createLLMClient({ providers: [], log: () => {} }), dailySpecLimit: 5 };
+  deps = { db, llm: createLLMClient({ providers: [], log: () => {} }), dailySpecLimit: 5, dailySpecLimitUser: 8, globalCallBudget: 600 };
 });
 
 describe("exportFilename", () => {

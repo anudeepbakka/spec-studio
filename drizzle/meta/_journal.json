@@ -15,6 +15,20 @@
       "when": 1793346645437,
       "tag": "0001_adaptive_interview",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793359198128,
+      "tag": "0002_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793359221649,
+      "tag": "0003_usage_subject",
+      "breakpoints": true
     }
   ]
 }

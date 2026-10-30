@@ -1,3 +1,4 @@
+import type { Owner } from "@/lib/owner/scope";
 // SPEC §15 / TASKS T8: screenshots of the five screens, using a seeded demo owner.
 // Run `npm run dev` first, then `npm run screenshots`. Needs DATABASE_URL in .env.local (the same database
 // the dev server uses). The demo owner is a fixed UUID, so real owners' specs are never touched.
@@ -10,7 +11,7 @@ import { createSpec, deleteSpec, listSpecs, updateSpec } from "@/lib/db/repo";
 import { sampleSpec } from "@/test/sample-spec";
 import type { Turn } from "@/lib/schemas/turn";
 
-const DEMO_OWNER = "5e7d0000-0000-4000-8000-000000000001";
+const DEMO_OWNER: Owner = { kind: "guest", ownerId: "5e7d0000-0000-4000-8000-000000000001" };
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:3000";
 const OUT_DIR = path.join(process.cwd(), "screenshots");
 const VIEWPORT = { width: 1280, height: 900 };
@@ -101,7 +102,7 @@ for (const theme of THEMES) {
     });
     await context.addInitScript(`localStorage.setItem("spec-studio-theme", "${theme}");`);
     // The owner cookie decides which specs the pages show (SPEC §5).
-    await context.addCookies([{ name: "ss_owner", value: DEMO_OWNER, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
+    await context.addCookies([{ name: "ss_owner", value: DEMO_OWNER.ownerId, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
     const page = await context.newPage();
 
     for (const shot of shots) {

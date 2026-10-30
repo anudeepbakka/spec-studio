@@ -13,7 +13,11 @@ const SPEC_ENV_KEYS = [
   "GEMINI_API_KEY",
   "GEMINI_MODEL",
   "DAILY_SPEC_LIMIT",
+  "DAILY_SPEC_LIMIT_USER",
+  "GLOBAL_DAILY_LLM_CALL_BUDGET",
   "LLM_TIMEOUT_MS",
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
 ];
 
 describe(".env.example", () => {

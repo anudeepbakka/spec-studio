@@ -1,3 +1,4 @@
+import type { Owner } from "../owner/scope";
 import { ApiError } from "../api/errors";
 import type { SpecRow } from "../db/schema";
 import { buildInterviewMessages } from "../prompts";
@@ -36,16 +37,22 @@ function assertOpen(spec: SpecRow): void {
 }
 
 // Asks the LLM for the next question, or for "done". The caller has already saved the answers.
-async function askQuestion(deps: SpecDeps, spec: SpecRow, turns: Turn[], allowDone: boolean): Promise<InterviewStep> {
+async function askQuestion(
+  deps: SpecDeps,
+  owner: Owner,
+  spec: SpecRow,
+  turns: Turn[],
+  allowDone: boolean,
+): Promise<InterviewStep> {
   const result = await deps.llm.generateJson(
     interviewTurnResponseSchema({ allowDone }),
     buildInterviewMessages({ rawRequest: spec.rawRequest, turns, allowDone }),
-    { onRequest: specCallReservation(deps, spec.ownerId, spec.id) },
+    { onRequest: specCallReservation(deps, owner, spec.id) },
   );
   const response = result.value;
 
   if (response.done) {
-    await saveInterview(deps, spec.ownerId, spec.id, turns, "interview_done");
+    await saveInterview(deps, owner, spec.id, turns, "interview_done");
     return { done: true, reason: response.reason ?? "The interview is complete." };
   }
 
@@ -64,13 +71,13 @@ async function askQuestion(deps: SpecDeps, spec: SpecRow, turns: Turn[], allowDo
     answeredAt: null,
   };
   const next = [...turns, turn];
-  await saveInterview(deps, spec.ownerId, spec.id, next, "interviewing");
+  await saveInterview(deps, owner, spec.id, next, "interviewing");
   return { done: false, turn };
 }
 
 // POST /interview/next. Saves the answer if one is sent, then returns the pending question or asks for the next one.
-export async function interviewNext(deps: SpecDeps, ownerId: string, id: string, answer?: AnswerInput): Promise<InterviewStep> {
-  const spec = await findOwnedSpec(deps.db, ownerId, id);
+export async function interviewNext(deps: SpecDeps, owner: Owner, id: string, answer?: AnswerInput): Promise<InterviewStep> {
+  const spec = await findOwnedSpec(deps.db, owner, id);
   assertOpen(spec);
   let turns = readTurns(spec);
 
@@ -80,11 +87,11 @@ export async function interviewNext(deps: SpecDeps, ownerId: string, id: string,
     }
     turns = applyAnswer(turns, answer, new Date());
     if (reachedMaximum(turns)) {
-      await saveInterview(deps, ownerId, id, turns, "interview_done");
+      await saveInterview(deps, owner, id, turns, "interview_done");
       return { done: true, reason: "The interview reached its maximum of 8 questions." };
     }
-    await saveInterview(deps, ownerId, id, turns, "interviewing");
-    return askQuestion(deps, spec, turns, doneAllowed(turns));
+    await saveInterview(deps, owner, id, turns, "interviewing");
+    return askQuestion(deps, owner, spec, turns, doneAllowed(turns));
   }
 
   const pending = pendingTurn(turns);
@@ -96,27 +103,27 @@ export async function interviewNext(deps: SpecDeps, ownerId: string, id: string,
   }
   if (spec.status === "draft") {
     // The first question starts the spec. Its status moves first, so a retry after a failed call is not charged again.
-    await chargeSpecStart(deps, ownerId);
-    await saveInterview(deps, ownerId, id, turns, "interviewing");
+    await chargeSpecStart(deps, owner);
+    await saveInterview(deps, owner, id, turns, "interviewing");
   }
-  return askQuestion(deps, spec, turns, doneAllowed(turns));
+  return askQuestion(deps, owner, spec, turns, doneAllowed(turns));
 }
 
 // POST /interview/undo. Removes the last answered turn and asks that question again. The re-ask cannot end the interview.
-export async function interviewUndo(deps: SpecDeps, ownerId: string, id: string): Promise<InterviewStep> {
-  const spec = await findOwnedSpec(deps.db, ownerId, id);
+export async function interviewUndo(deps: SpecDeps, owner: Owner, id: string): Promise<InterviewStep> {
+  const spec = await findOwnedSpec(deps.db, owner, id);
   assertOpen(spec);
   if (spec.status === "draft") {
     throw new ApiError(409, "invalid_state", "There is no answer to undo.");
   }
   const { turns } = undoLast(readTurns(spec));
-  await saveInterview(deps, ownerId, id, turns, "interviewing");
-  return askQuestion(deps, spec, turns, false);
+  await saveInterview(deps, owner, id, turns, "interviewing");
+  return askQuestion(deps, owner, spec, turns, false);
 }
 
 // POST /interview/finish. Ends the interview early once there are enough real answers. Drops any pending question.
-export async function interviewFinish(deps: SpecDeps, ownerId: string, id: string): Promise<InterviewStep> {
-  const spec = await findOwnedSpec(deps.db, ownerId, id);
+export async function interviewFinish(deps: SpecDeps, owner: Owner, id: string): Promise<InterviewStep> {
+  const spec = await findOwnedSpec(deps.db, owner, id);
   assertOpen(spec);
   if (spec.status === "interview_done") {
     return { done: true, reason: "You finished the interview early." };
@@ -125,6 +132,6 @@ export async function interviewFinish(deps: SpecDeps, ownerId: string, id: strin
   if (!canFinishEarly(turns)) {
     throw new ApiError(409, "too_few_answers", "Answer at least 3 questions before finishing early.");
   }
-  await saveInterview(deps, ownerId, id, withoutPending(turns), "interview_done");
+  await saveInterview(deps, owner, id, withoutPending(turns), "interview_done");
   return { done: true, reason: "You finished the interview early." };
 }

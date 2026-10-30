@@ -2,10 +2,12 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { ArrowRight, FileText, ListChecks, MessageSquare, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
+import { ClaimGuestPrompt } from "@/components/ClaimGuestPrompt";
+import { GuestBanner } from "@/components/GuestBanner";
 import { NewRequestForm } from "@/components/NewRequestForm";
 import { SpecCard } from "@/components/SpecCard";
 import { Card } from "@/components/ui/Card";
-import { currentOwnerId } from "@/lib/owner/current";
+import { currentOwner, currentUser } from "@/lib/auth/identity";
 import { getDeps } from "@/lib/server/deps";
 import { HOW_IT_WORKS } from "@/lib/specs/format";
 import { listOwnedSpecs } from "@/lib/specs/service";
@@ -19,8 +21,9 @@ const RECENT_LIMIT = 6;
 // SPEC §11 Home: a hero with the prompt box, how it works, and recent specs as a card grid.
 export default async function Home() {
   await connection();
-  const ownerId = await currentOwnerId();
-  const specs = ownerId ? await listOwnedSpecs(getDeps(), ownerId) : [];
+  const owner = await currentOwner();
+  const user = await currentUser();
+  const specs = owner ? await listOwnedSpecs(getDeps(), owner) : [];
   const now = new Date().toISOString();
   const recent = specs.slice(0, RECENT_LIMIT);
 
@@ -28,6 +31,10 @@ export default async function Home() {
     <>
       <AppHeader />
       <main className="mx-auto w-full max-w-6xl space-y-20 px-4 pb-20 pt-14 sm:px-6 sm:pt-20">
+        <div className="space-y-4">
+          {user ? null : <GuestBanner />}
+          <ClaimGuestPrompt />
+        </div>
         <section aria-labelledby="hero" className="mx-auto max-w-3xl text-center">
           <p className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-glass px-3 py-1 text-xs text-muted">
             <Sparkles size={13} aria-hidden="true" className="text-cyan" />
@@ -43,6 +50,12 @@ export default async function Home() {
           <div className="mt-10 text-left">
             <NewRequestForm />
           </div>
+          <p className="mt-4 text-center text-xs text-muted">
+            Prompts and answers are sent to third-party AI providers. Do not enter confidential information.{" "}
+            <Link href="/privacy" className="text-accent underline-offset-4 hover:underline">
+              Privacy
+            </Link>
+          </p>
         </section>
 
         <section aria-labelledby="how-it-works" className="space-y-6">

@@ -1,3 +1,4 @@
+import type { Owner } from "@/lib/owner/scope";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -5,8 +6,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createSpec, deleteSpec, getSpec, listSpecs, updateSpec, type Db } from "./repo";
 import * as schema from "./schema";
 
-const OWNER_A = "11111111-1111-4111-8111-111111111111";
-const OWNER_B = "22222222-2222-4222-8222-222222222222";
+const OWNER_A: Owner = { kind: "guest", ownerId: "11111111-1111-4111-8111-111111111111" };
+const OWNER_B: Owner = { kind: "guest", ownerId: "22222222-2222-4222-8222-222222222222" };
 
 // A real Postgres (PGlite, in-process) with the migration from drizzle/ applied.
 let db: Db;
@@ -27,7 +28,7 @@ describe("spec repository", () => {
     expect(row.status).toBe("draft");
     expect(row.title).toBe("x".repeat(60));
     expect(row.rawRequest).toBe(request);
-    expect(row.ownerId).toBe(OWNER_A);
+    expect(row.ownerId).toBe(OWNER_A.ownerId);
   });
 
   it("gets a spec only for its owner", async () => {

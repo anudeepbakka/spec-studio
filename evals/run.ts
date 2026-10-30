@@ -1,3 +1,4 @@
+import type { Owner } from "@/lib/owner/scope";
 // SPEC §13: `npm run eval`. Runs an interview for each case in evals/cases.json, generates a spec from it, and writes
 // the metrics to evals/results/latest.json. Uses the real providers from .env.local (loaded by the npm script).
 //
@@ -34,7 +35,7 @@ import {
 } from "../src/lib/evals/metrics";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const OWNER = "22222222-2222-4222-8222-222222222222";
+const OWNER: Owner = { kind: "guest", ownerId: "22222222-2222-4222-8222-222222222222" };
 // The eval makes its own specs, so the production daily limit does not apply here.
 const EVAL_DAILY_LIMIT = 1000;
 
@@ -277,6 +278,8 @@ async function main() {
     db: instance as unknown as Db,
     llm: createLLMClient({ providers, log: (event) => attempts.push(event) }),
     dailySpecLimit: EVAL_DAILY_LIMIT,
+    dailySpecLimitUser: 8,
+    globalCallBudget: 600,
   };
 
   // `--limit N` runs only the first N cases, to save provider quota (for example: npm run eval -- --limit 2).

@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { SearchX } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/Card";
 
 // SPEC §12: friendly 404 for missing specs and unknown URLs.
-export default function NotFound() {
+export const instant = false;
+
+export default async function NotFound() {
+  await connection();
   return (
     <>
       <AppHeader />
