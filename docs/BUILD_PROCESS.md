@@ -41,7 +41,7 @@ The commit history shows the order. The spec changed twice in the middle, and ea
 | T9 | Sign-off: final portfolio documentation, run only on the owner's word | `bf7801d` |
 | T10 | Light, dark and system theme, with contrast tests | `14ae671`, `ac71704` |
 | T11 | Username and password accounts, guest claiming, account deletion, per-user and global limits | `13e1d47` |
-| T12 | Documentation for accounts and the theme, screenshots refreshed | the commit that adds this row |
+| T12 | Documentation for accounts and the theme, screenshots refreshed | `c4dfe4a` |
 
 T4 was a first version of the question flow, which T6a replaced. Both are kept in the history, and the legacy specs created by T4 to T6 still open read-only. That is documented in the [design decisions](DESIGN_DECISIONS.md#legacy-specs-stay-readable-and-are-not-migrated-30-oct).
 
