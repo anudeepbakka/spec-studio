@@ -412,3 +412,9 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 ## Problem: End-to-end sign-up is slower than the default expect timeout
 **What happened:** A sign-up takes about 6 seconds against Neon (password hashing plus several writes), and the page then loads the home page. The 15-second expect timeout was too short for the sign-up test on some runs.
 **How it was fixed:** `playwright.config.ts` sets the expect timeout to 45 seconds. The e2e run also creates one account per run, and the account is deleted by the last test.
+
+## 2026-10-31: Docs describe the code, and the live demo is labelled as earlier
+Context: T12 asks for docs that match the code. The live Vercel demo was deployed before the accounts work, and I have not redeployed it from here.
+Decision: The docs describe the current code, including accounts and the theme. The README says that the live demo may run an earlier version until it is redeployed. Evals were not rerun, as T12 asks, so the eval numbers in the README are from the earlier run.
+Alternatives: Wait to write the docs until the redeploy (leaves the repo without accurate docs); describe the live demo as current (would be untrue).
+Consequence: The eval table is older than the code. Rerun the eval before quoting new numbers.

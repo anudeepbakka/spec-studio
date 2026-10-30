@@ -38,6 +38,10 @@ The commit history shows the order. The spec changed twice in the middle, and ea
 | T6b | Dark-first UI redesign on the interview flow | `ca81f94` |
 | T7 | Eval runner and metrics | `eefe8ba` |
 | T8 | Screenshots, health route, drizzle script fix, deploy | `eaefeb6`, `9abf245`, `fcea6c3` |
+| T9 | Sign-off: final portfolio documentation, run only on the owner's word | `bf7801d` |
+| T10 | Light, dark and system theme, with contrast tests | `14ae671`, `ac71704` |
+| T11 | Username and password accounts, guest claiming, account deletion, per-user and global limits | `13e1d47` |
+| T12 | Documentation for accounts and the theme, screenshots refreshed | the commit that adds this row |
 
 T4 was a first version of the question flow, which T6a replaced. Both are kept in the history, and the legacy specs created by T4 to T6 still open read-only. That is documented in the [design decisions](DESIGN_DECISIONS.md#legacy-specs-stay-readable-and-are-not-migrated-30-oct).
 
@@ -57,6 +61,7 @@ Each of these was found by running the app, not by the checks. Most were caught 
 - **Mobile layout overflowed.** The 375px check found sideways scrolling on the result page. See [the problem log](DESIGN_DECISIONS.md#mobile-layout-overflowed-sideways-at-375px).
 - **The database was not set up.** The first request failed because the migration had not been run on the Neon database. A second issue then made the migration command use an empty URL. Both are in [the problem log](DESIGN_DECISIONS.md#the-migration-command-silently-used-an-empty-database-url).
 - **The eval exposed a real limit.** The first eval runs showed that the 12-call cap is tight for free models. The result is recorded rather than hidden. See [EVALS](EVALS.md#known-gaps).
+- **Unit tests missed a production failure.** The rate limiter passed `Date` objects into raw SQL. The PGlite unit tests passed, and every sign-up failed on Neon until a browser test ran the real path. The fix is in [the problem log](DESIGN_DECISIONS.md#raw-sql-rejected-date-parameters-on-neon). The end-to-end tests now cover sign-up on the real database.
 
 ## What I would do differently
 
