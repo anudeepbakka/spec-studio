@@ -34,7 +34,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   *Done when:* the full flow works in the browser on desktop and mobile widths; every error state in SPEC §12 is visible and friendly.
   *The question-first wizard is replaced by T6a and T6b. Kept as history.*
 
-- [ ] **T6a Adaptive interview: backend.**
+- [x] **T6a Adaptive interview: backend.**
   Replace the one-shot questions with an adaptive interview (SPEC §4, §5, §6, §8, §9, §10, §12).
   - Zod schemas for `Turn`, `Coverage`, `InterviewTurnResponse`, and the server-assigned question IDs. Interview `superRefine` checks.
   - Prompts v2: the question prompt (one question per turn, min 4 and max 8 resolved turns, full transcript as input) and the spec prompt built from the full transcript.

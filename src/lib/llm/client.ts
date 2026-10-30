@@ -28,6 +28,9 @@ export type GenerateOptions = {
   // Called with the running character count while the model streams its answer (SPEC §10).
   // The count restarts when the repair call begins.
   onProgress?: (chars: number) => void;
+  // Called before every request sent to a provider, including repairs and fallbacks (SPEC §8).
+  // It may throw to refuse the request, for example when the spec's call cap is reached.
+  onRequest?: () => Promise<void>;
 };
 
 const RATE_LIMIT_COOLDOWN_MS = 60_000;
@@ -65,7 +68,8 @@ export function createLLMClient(options: LLMClientOptions) {
   }
 
   // Times one provider call and logs metadata only (never prompts or answers).
-  async function timed<T>(provider: LLMProvider, call: () => Promise<T>): Promise<T> {
+  async function timed<T>(provider: LLMProvider, call: () => Promise<T>, onRequest?: () => Promise<void>): Promise<T> {
+    await onRequest?.();
     attempt += 1;
     const started = now();
     const base = { event: "llm_attempt" as const, provider: provider.name, model: provider.model, attempt };
@@ -108,14 +112,15 @@ export function createLLMClient(options: LLMClientOptions) {
     messages: ChatMessage[],
     options: GenerateOptions = {},
   ): Promise<GenerateResult<T>> {
-    const { signal, onProgress } = options;
+    const { signal, onProgress, onRequest } = options;
     const { value, provider } = await withFallback(async (p) => {
-      const raw = await timed(p, () => complete(p, { messages, json: true, signal }, onProgress));
+      const raw = await timed(p, () => complete(p, { messages, json: true, signal }, onProgress), onRequest);
       const first = parseAndValidate(schema, raw);
       if (first.ok) return first.value;
 
       const repairedRaw = await timed(p, () =>
         complete(p, { messages: buildRepairMessages(messages, raw, first.errors), json: true, signal }, onProgress),
+        onRequest,
       );
       const second = parseAndValidate(schema, repairedRaw);
       if (second.ok) return second.value;

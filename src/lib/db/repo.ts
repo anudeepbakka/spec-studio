@@ -18,6 +18,7 @@ export async function createSpec(db: Db, ownerId: string, rawRequest: string): P
       title: rawRequest.slice(0, 60),
       rawRequest,
       status: "draft",
+      interview: [],
     })
     .returning();
   if (!row) {
@@ -67,18 +68,29 @@ export async function deleteSpec(db: Db, ownerId: string, id: string): Promise<b
   return deleted.length > 0;
 }
 
-// Adds one LLM run to the owner's count for the day (UTC, YYYY-MM-DD), unless the day is already at the limit.
+// Counts one new spec for the owner's day (UTC, YYYY-MM-DD), unless the day is already at the limit.
 // Returns false when the limit is reached. It is one statement, so parallel requests cannot go past the limit.
-export async function reserveLlmRun(db: Db, ownerId: string, day: string, limit: number): Promise<boolean> {
+export async function reserveSpecStart(db: Db, ownerId: string, day: string, limit: number): Promise<boolean> {
   if (limit < 1) return false;
   const rows = await db
     .insert(usage)
-    .values({ ownerId, day, llmRuns: 1 })
+    .values({ ownerId, day, specsStarted: 1 })
     .onConflictDoUpdate({
       target: [usage.ownerId, usage.day],
-      set: { llmRuns: sql`${usage.llmRuns} + 1` },
-      setWhere: sql`${usage.llmRuns} < ${limit}`,
+      set: { specsStarted: sql`${usage.specsStarted} + 1` },
+      setWhere: sql`${usage.specsStarted} < ${limit}`,
     })
-    .returning({ llmRuns: usage.llmRuns });
+    .returning({ specsStarted: usage.specsStarted });
+  return rows.length > 0;
+}
+
+// Reserves one AI request on a spec, unless the spec is already at its call cap (SPEC §10).
+// It is a conditional update, so two requests at the cap cannot both pass.
+export async function reserveSpecCall(db: Db, ownerId: string, id: string, cap: number): Promise<boolean> {
+  const rows = await db
+    .update(specs)
+    .set({ llmCalls: sql`${specs.llmCalls} + 1` })
+    .where(and(eq(specs.id, id), eq(specs.ownerId, ownerId), sql`${specs.llmCalls} < ${cap}`))
+    .returning({ id: specs.id });
   return rows.length > 0;
 }

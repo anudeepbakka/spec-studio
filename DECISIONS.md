@@ -210,3 +210,23 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 **Decision:** The model returns the question without an ID. The server assigns `Q-{index}`.
 **Alternatives:** Trust the model's IDs and check them for duplicates (more checks for the same result).
 **Consequence:** Answers are keyed to server-generated IDs, so an invalid ID from the model cannot break the transcript.
+
+## Problem: Suspense-streamed sections never hydrated, so their buttons did nothing
+**What happened:** After the T6 prerender fix (`Suspense` around the per-request reads), the spec page and the home page's recent-specs list rendered, but their buttons had no React handlers. A click on Send submitted the form natively. Delete buttons inside the streamed section were inert too. The home header and form, outside the boundary, hydrated fine.
+**Fix:** Both pages export `instant = false`, Next's "allow blocking route" option, and drop the `Suspense` wrappers. They render per request, as one blocking route, so there is no streamed boundary to hydrate. This also makes `notFound()` return a real 404, which closes the 200-status gap logged earlier.
+
+## 2026-10-30: Migration resets the daily counter instead of carrying old counts over
+**Context:** `usage.llm_runs` counted provider runs. The new `usage.specs_started` counts new specs, so the old numbers mean something else.
+**Decision:** Migration `0001_adaptive_interview` renames the column and sets it to 0 for all rows.
+**Alternatives:** Carry the counts over (a user near the old run limit would be blocked by a count of a different kind).
+**Consequence:** Owners get a fresh daily allowance on deploy. Acceptable before T8 (no production users yet).
+
+## 2026-10-30: The interview prompt names vague answers explicitly
+**Context:** In a live test, the question after "It depends, maybe the finance team" ignored that answer. SPEC §9 asked for follow-ups on vague answers, but the prompt did not say how.
+**Decision:** The v2 prompt requires that after a vague or hedged answer (for example "it depends", "maybe", "not sure", or a word or two), the next question asks about that answer directly and quotes its key words.
+**Alternatives:** Leave the general rule and rely on the model (the test showed it does not reliably follow it); enforce follow-ups in code (hard to judge in code).
+**Consequence:** One live check with a second spec now shows the follow-up. Eval T7 should measure this rate.
+
+## Problem: Test timing under load
+**What happened:** One full test run during the live browser checks reported 5 failures. The rerun passed all 123. The service tests run PGlite migrations per test, which can exceed the default timeout when the machine is busy.
+**Fix:** Not changed yet. If it recurs, raise `testTimeout` for the database test files in `vitest.config.mts`.

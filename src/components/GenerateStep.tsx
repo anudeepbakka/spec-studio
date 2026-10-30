@@ -1,14 +1,15 @@
+import type { SpecStatus } from "@/lib/specs/view";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "./ui";
 
 type Props = {
   // Characters received so far, or null when no run is streaming in this browser.
   progress: number | null;
-  status: "answered" | "generating" | "failed" | "done";
+  status: SpecStatus;
   errorMessage: string | null;
   busy: boolean;
   onGenerate: () => void;
   onCancel: () => void;
-  onEditAnswers: () => void;
+  onReview: () => void;
   onRefresh: () => void;
 };
 
@@ -20,7 +21,7 @@ export function GenerateStep({
   busy,
   onGenerate,
   onCancel,
-  onEditAnswers,
+  onReview,
   onRefresh,
 }: Props) {
   if (progress !== null) {
@@ -54,13 +55,13 @@ export function GenerateStep({
           {errorMessage}
         </p>
       )}
-      {status === "answered" && <p className="text-sm">Your answers are saved. Generate the spec when you are ready.</p>}
+      {status === "interview_done" && <p className="text-sm">The interview is complete. Generate the spec when you are ready.</p>}
       <div className="flex flex-wrap gap-3">
         <button type="button" disabled={busy} onClick={onGenerate} className={PRIMARY_BUTTON}>
           {status === "failed" ? "Try again" : "Generate spec"}
         </button>
-        <button type="button" disabled={busy} onClick={onEditAnswers} className={SECONDARY_BUTTON}>
-          Edit answers
+        <button type="button" disabled={busy} onClick={onReview} className={SECONDARY_BUTTON}>
+          Review interview
         </button>
       </div>
     </section>

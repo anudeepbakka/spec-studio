@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { AnswerSchema } from "../schemas/questions";
 
 // SPEC §10: input limits. Messages are shown to the user as they are.
 
@@ -10,9 +9,17 @@ export const CreateSpecInputSchema = z.object({
     .max(4000, "Keep the request under 4000 characters."),
 });
 
-export const SaveAnswersInputSchema = z.object({
-  answers: z.array(AnswerSchema).max(8, "Too many answers. Send at most 8."),
+// The answer to the pending question. Skipped and "not sure" are flags, so the text is ignored when skipped.
+export const InterviewAnswerInputSchema = z.object({
+  answer: z
+    .object({
+      questionId: z.string().min(1, "Say which question this answer is for."),
+      answer: z.string().max(1000, "Keep each answer under 1000 characters."),
+      skipped: z.boolean().optional(),
+      notSure: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export type CreateSpecInput = z.infer<typeof CreateSpecInputSchema>;
-export type SaveAnswersInput = z.infer<typeof SaveAnswersInputSchema>;
+export type InterviewAnswerInput = z.infer<typeof InterviewAnswerInputSchema>;

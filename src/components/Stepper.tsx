@@ -1,6 +1,6 @@
 import { STEP_LABELS, type Step } from "@/lib/specs/steps";
 
-const ORDER: Step[] = ["request", "questions", "generate", "result"];
+const ORDER: Step[] = ["request", "interview", "generate", "result"];
 
 // SPEC §4 and §11: shows where the user is in the four steps. Finished steps are marked.
 export function Stepper({ current }: { current: Step }) {

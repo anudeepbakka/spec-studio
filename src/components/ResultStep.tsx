@@ -5,10 +5,17 @@ import type { Spec } from "@/lib/schemas/spec";
 import { SpecSections } from "./SpecSections";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "./ui";
 
-type Props = { id: string; spec: Spec; busy: boolean; onRegenerate: () => void };
+type Props = {
+  id: string;
+  spec: Spec;
+  busy: boolean;
+  // Legacy specs are read-only, so they have no regenerate action (SPEC §10).
+  readOnly?: boolean;
+  onRegenerate: () => void;
+};
 
 // SPEC §11 Result: the finished spec with copy, download, and regenerate.
-export function ResultStep({ id, spec, busy, onRegenerate }: Props) {
+export function ResultStep({ id, spec, busy, readOnly = false, onRegenerate }: Props) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   // The Markdown comes from the export endpoint, so copy and download produce the same file (SPEC §7).
@@ -34,9 +41,11 @@ export function ResultStep({ id, spec, busy, onRegenerate }: Props) {
         <a href={`/api/specs/${id}/export`} download className={SECONDARY_BUTTON}>
           Download .md
         </a>
-        <button type="button" disabled={busy} onClick={onRegenerate} className={SECONDARY_BUTTON}>
-          Regenerate
-        </button>
+        {!readOnly && (
+          <button type="button" disabled={busy} onClick={onRegenerate} className={SECONDARY_BUTTON}>
+            Regenerate
+          </button>
+        )}
         <span role="status" className="text-sm text-neutral-700">
           {copyState === "copied" && "Copied to clipboard."}
           {copyState === "failed" && "Copy failed. Use Download .md instead."}

@@ -1,15 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { parseSseBuffer } from "./client";
-import { stepFor } from "./steps";
+import { isLegacyView, stepFor } from "./steps";
 
 describe("stepFor", () => {
   it("maps each saved status to the step that handles it", () => {
     expect(stepFor("draft")).toBe("request");
-    expect(stepFor("questions_ready")).toBe("questions");
-    expect(stepFor("answered")).toBe("generate");
+    expect(stepFor("interviewing")).toBe("interview");
+    expect(stepFor("interview_done")).toBe("generate");
     expect(stepFor("generating")).toBe("generate");
     expect(stepFor("failed")).toBe("generate");
     expect(stepFor("done")).toBe("result");
+  });
+});
+
+describe("isLegacyView", () => {
+  it("treats a started spec without an interview as legacy, and a draft as new", () => {
+    expect(isLegacyView({ interview: null, status: "answered" })).toBe(true);
+    expect(isLegacyView({ interview: null, status: "draft" })).toBe(false);
+    expect(isLegacyView({ interview: [], status: "interviewing" })).toBe(false);
   });
 });
 
