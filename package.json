@@ -12,7 +12,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "eval": "tsx --env-file=.env.local evals/run.ts",
-    "screenshots": "echo screenshots are not built yet (T8) && exit 1"
+    "screenshots": "tsx --env-file=.env.local scripts/screenshots.mts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",
@@ -33,6 +33,7 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "playwright": "^1.64.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
