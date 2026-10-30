@@ -5,8 +5,8 @@ export type Tone = "neutral" | "violet" | "cyan" | "success" | "warning" | "dang
 // SPEC §11 primitive: status and priority badges. Colour is never the only cue: each badge also carries its text.
 const TONES: Record<Tone, string> = {
   neutral: "border-border bg-glass text-muted",
-  violet: "border-accent/40 bg-accent/15 text-[#ddd6fe]",
-  cyan: "border-cyan/40 bg-cyan/10 text-[#a5f3fc]",
+  violet: "border-accent/40 bg-accent/15 text-[var(--tint-violet)]",
+  cyan: "border-cyan/40 bg-cyan/10 text-[var(--tint-cyan)]",
   success: "border-success/40 bg-success/10 text-success",
   warning: "border-warning/40 bg-warning/10 text-warning",
   danger: "border-danger/40 bg-danger/10 text-danger",

@@ -366,3 +366,13 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 **Decision:** Before the next deploy, apply the T11 migration to Neon and set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `DAILY_SPEC_LIMIT_USER` and `GLOBAL_DAILY_LLM_CALL_BUDGET` in Vercel. The migration rewrites `usage` keys, so it must run before the new code serves requests.
 **Alternatives:** Deploy code first (it would fail on the missing columns); keep the old usage key during a transition (adds code paths for no lasting benefit).
 **Consequence:** There is a short window where old code and the new schema must not run together. Run the migration as one step before the deploy.
+
+## 2026-10-30: Light, dark and system theme with CSS variables and no library
+**Context:** SPEC §11 and T10 ask for a three-state theme (Light, Dark, System, default System). The earlier dark-first decision (above, "Dark-first theme") is superseded for the theme switch. The choice must apply before first paint, so no wrong theme flashes.
+**Decision:** The choice is saved in `localStorage` under `spec-studio-theme`. An inline script in `<head>` (`THEME_INIT_SCRIPT`, `src/lib/theme/theme.ts`) sets `data-theme` on `<html>`. `globals.css` holds the dark values in `:root` and the light values in `:root[data-theme="light"]`. `src/lib/design/tokens.ts` holds `DARK_TOKENS` and `LIGHT_TOKENS`, and a test checks both the contrast and that the CSS matches.
+**Alternatives:** `next-themes` (a new library, outside the two allowed in SPEC §3); Tailwind `dark:` variants (every utility would be written twice); inverting the dark palette (SPEC §11 asks for a designed light theme).
+**Consequence:** Every new colour needs a light value and a contrast check in both themes. A hard-coded hex or rgba in a component will not follow the theme, so shadows and glows use variables too.
+
+## Problem: A running dev server kept serving the old stylesheet
+**What happened:** During the T10 check, a dev server already running on port 3000 served the pre-change `globals.css` (no `data-theme` rules), so the toggle changed the attribute but the colours did not change. A second `next dev` refused to start because of the lock.
+**How it was fixed:** The change was checked on a production build (`next build`, then `next start` on port 3001). The stale server was left alone, since it was not started for this task. Restarting the dev server clears this.
