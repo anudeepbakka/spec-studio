@@ -9,5 +9,9 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.test.ts", "evals/**/*.test.ts"],
+    // Each database test runs PGlite migrations in beforeEach. Under load (the dev server compiling) that can pass
+    // the 10 s default, so the limits are raised. See DECISIONS.md, "Test timing under load".
+    hookTimeout: 60_000,
+    testTimeout: 30_000,
   },
 });

@@ -46,7 +46,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   - Tests per SPEC §13: turn schema, state machine (min 4, max 8, forced done, finish early, undo, resume), prompt includes full history, per-spec call cap, daily spec limit.
   - *Done when:* all checks pass; a full interview and generation work from the UI; later questions visibly refer to earlier answers; undo, finish early, and resume after reload work; the call cap and daily limit are enforced in tests and in the UI; a legacy spec opens read-only.
 
-- [ ] **T6b Rich UI redesign.**
+- [x] **T6b Rich UI redesign.**
   Implement SPEC §11 on top of T6a: dark-first tokens, Inter and Geist Mono, glass cards, framer-motion, lucide-react, and the five screens (Home, Interview, Generating, Result, History). Primitives in `src/components/ui/`.
   - Log the new dependencies and the dark-first decision in DECISIONS.md.
   - *Done when:* all five screens match SPEC §11; they work at 375px and on desktop; the full interview can be completed with the keyboard; contrast passes WCAG AA on the dark theme; reduced motion is respected; the empty, loading, and error states from SPEC §12 are visible; and I confirm the look.

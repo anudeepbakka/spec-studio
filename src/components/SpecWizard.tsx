@@ -1,18 +1,21 @@
 "use client";
 
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { z } from "zod";
 import type { AnswerPayload } from "@/lib/interview/client";
 import { parseSseBuffer, readApiFailure } from "@/lib/specs/client";
-import { isLegacyView, STATUS_LABELS, stepFor, type Step } from "@/lib/specs/steps";
+import { isLegacyView, stepFor, type Step } from "@/lib/specs/steps";
 import type { SpecView } from "@/lib/specs/view";
+import { Card } from "./ui/Card";
+import { Button } from "./ui/Button";
 import { DeleteSpecButton } from "./DeleteSpecButton";
 import { GenerateStep } from "./GenerateStep";
 import { InterviewStep } from "./InterviewStep";
 import { ResultStep } from "./ResultStep";
+import { StatusBadge } from "./StatusBadge";
 import { Stepper } from "./Stepper";
-import { PRIMARY_BUTTON } from "./ui";
 
 const ProgressSchema = z.object({ chars: z.number() });
 
@@ -144,17 +147,19 @@ export function SpecWizard({ initial }: { initial: SpecView }) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
-      <nav className="mb-6 text-sm">
-        <Link href="/" className="underline-offset-2 hover:underline">
+    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <nav aria-label="Breadcrumb" className="mb-6">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-text">
+          <ArrowLeft size={14} aria-hidden="true" />
           All specs
         </Link>
       </nav>
 
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="break-words text-xl font-semibold">{spec.title}</h1>
-          <p className="text-sm text-neutral-600">{STATUS_LABELS[spec.status]}</p>
+      <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 space-y-2">
+          <StatusBadge status={spec.status} />
+          <h1 className="break-words text-2xl font-semibold tracking-tight">{spec.title}</h1>
+          <p className="font-mono text-xs text-muted">{id}</p>
         </div>
         <DeleteSpecButton id={id} redirectTo="/" />
       </header>
@@ -162,7 +167,7 @@ export function SpecWizard({ initial }: { initial: SpecView }) {
       {!legacy && <Stepper current={step} />}
 
       {error && (
-        <p role="alert" className="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <p role="alert" className="mb-6 rounded-xl border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
           {error}
         </p>
       )}
@@ -170,14 +175,16 @@ export function SpecWizard({ initial }: { initial: SpecView }) {
       {legacy && <LegacyView spec={spec} />}
 
       {!legacy && step === "request" && (
-        <section className="space-y-6">
-          <blockquote className="whitespace-pre-wrap rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm">
-            {spec.rawRequest}
-          </blockquote>
-          <button type="button" disabled={busy} onClick={() => interviewAction("next")} className={PRIMARY_BUTTON}>
+        <Card className="space-y-6 p-6">
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-muted">Your request</h2>
+            <blockquote className="whitespace-pre-wrap text-base leading-relaxed">{spec.rawRequest}</blockquote>
+          </div>
+          <Button variant="primary" disabled={busy} onClick={() => interviewAction("next")}>
             {busy ? "Starting..." : "Start the interview"}
-          </button>
-        </section>
+            {!busy && <ArrowRight size={16} aria-hidden="true" />}
+          </Button>
+        </Card>
       )}
 
       {!legacy && step === "interview" && spec.interview && (
@@ -220,20 +227,26 @@ function LegacyView({ spec }: { spec: SpecView }) {
   const answerFor = new Map((spec.answers ?? []).map((answer) => [answer.questionId, answer.answer.trim()]));
   return (
     <section className="space-y-6">
-      <p className="rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm">
+      <Card className="p-5 text-sm text-muted">
         This spec was made with an earlier version of the question flow. You can read it or delete it.
-      </p>
-      <blockquote className="whitespace-pre-wrap rounded-md border border-neutral-200 p-4 text-sm">{spec.rawRequest}</blockquote>
+      </Card>
+      <Card className="space-y-2 p-6">
+        <h2 className="text-sm font-medium text-muted">Your request</h2>
+        <blockquote className="whitespace-pre-wrap text-base leading-relaxed">{spec.rawRequest}</blockquote>
+      </Card>
       {spec.questions && (
-        <ol className="space-y-3 text-sm">
+        <ol className="space-y-4">
           {spec.questions.map((question) => (
             <li key={question.id}>
-              <p className="text-neutral-600">{question.question}</p>
-              <p className="font-medium">{answerFor.get(question.id) || "Skipped"}</p>
+              <Card className="space-y-1 p-4">
+                <p className="text-sm text-muted">{question.question}</p>
+                <p className="font-medium">{answerFor.get(question.id) || "Skipped"}</p>
+              </Card>
             </li>
           ))}
         </ol>
       )}
+      {spec.spec && <ResultStep id={spec.id} spec={spec.spec} busy={false} readOnly onRegenerate={() => undefined} />}
     </section>
   );
 }

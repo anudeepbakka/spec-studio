@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { z } from "zod";
+import { AppHeader } from "@/components/AppHeader";
+import { SpecWizard } from "@/components/SpecWizard";
 import { getSpec } from "@/lib/db/repo";
 import { currentOwnerId } from "@/lib/owner/current";
 import { getDeps } from "@/lib/server/deps";
 import { toSpecView } from "@/lib/specs/view";
-import { SpecWizard } from "@/components/SpecWizard";
 
 // Rendered per request as a blocking route, so a missing spec gets a real 404 and the wizard hydrates.
 export const instant = false;
@@ -24,5 +25,10 @@ export default async function SpecPage({ params }: Props) {
   const row = await getSpec(getDeps().db, ownerId, id);
   if (!row) notFound();
 
-  return <SpecWizard initial={toSpecView(row)} />;
+  return (
+    <>
+      <AppHeader />
+      <SpecWizard initial={toSpecView(row)} />
+    </>
+  );
 }

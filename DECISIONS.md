@@ -230,3 +230,35 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 ## Problem: Test timing under load
 **What happened:** One full test run during the live browser checks reported 5 failures. The rerun passed all 123. The service tests run PGlite migrations per test, which can exceed the default timeout when the machine is busy.
 **Fix:** Not changed yet. If it recurs, raise `testTimeout` for the database test files in `vitest.config.mts`.
+
+## 2026-10-30: Added framer-motion and lucide-react for T6b
+**Context:** SPEC §11 asks for subtle motion (step transitions, typing, typewriter reveal, animated progress) and icons. Both need a library, and CLAUDE.md requires a logged reason.
+**Decision:** framer-motion (motion, with reduced motion read per component and set globally by MotionConfig) and lucide-react (icons). These are the only two new dependencies. Inter and Geist Mono load with next/font/google.
+**Alternatives:** CSS keyframes only (no reduced-motion or layout animation control in one place); an icon set copied into the repo (more code to maintain).
+**Consequence:** Every animated component needs a reduced-motion path. The typewriter and typing dots render their final state when reduced motion is on.
+
+## 2026-10-30: Dark-first design, with the tokens checked by a test
+**Context:** SPEC §11 asks for a dark-first theme with design tokens. The colours must meet WCAG AA, and the CSS and any TypeScript use must not drift apart.
+**Decision:** The palette lives in src/lib/design/tokens.ts and is mirrored as CSS variables in globals.css. A Vitest test computes the contrast ratio of each text pair (at least 4.5 to 1) and checks that globals.css matches the token file.
+**Alternatives:** Tailwind default colours (no token contract, weaker brand); a light theme with a switch (out of scope).
+**Consequence:** Changing a colour means changing it in two places, and the test fails if they differ.
+
+## 2026-10-30: Generation stages follow the character count, not real steps
+**Context:** The model returns one JSON document, so the server has no real step boundaries to report. SPEC §11 wants stages that move while the spec is written.
+**Decision:** The five stage labels advance at fixed character counts (src/lib/specs/format.ts). The progress bar is an estimate that stops at 95 percent until the spec arrives. The live counter is the real progress.
+**Alternatives:** Ask the model for stage markers (costs output tokens and can break the JSON); fake timers (would show progress that is not happening).
+**Consequence:** The stages are a visual guide. They can be ahead of or behind the model's real work, and the UI says so only through the counter.
+
+## 2026-10-30: Relative dates are rendered on the server from one timestamp
+**Context:** Showing "12 min ago" in the browser would give a different value on the server and the client, causing a hydration mismatch.
+**Decision:** The server page passes an ISO timestamp of its own render time. SpecCard and HistoryList compute the relative date from that value, so the HTML and the hydrated page agree.
+**Alternatives:** Compute the time in the browser after mount (the first paint would show nothing or a different value).
+**Consequence:** A page left open for a long time shows dates as of when it was loaded, until a reload.
+
+## Problem: Mobile layout overflowed sideways
+**What happened:** At 375px the result page and its sticky section nav made the page wider than the screen. The text and the action buttons were cut off on the right.
+**Fix:** The two-column grids on the result, interview and generating screens now set an explicit single column with minmax(0, 1fr) below the breakpoint, and the nav has min-width 0. A browser check measures the page width at 375px on each screen.
+
+## Problem: Test timing under load (recurred)
+**What happened:** During the browser checks, six database tests failed with "Hook timed out in 10000ms" in beforeEach (PGlite migrations). They passed on a rerun with the dev server idle.
+**Fix:** vitest.config.mts sets hookTimeout to 60 s and testTimeout to 30 s. The database tests run migrations in a fresh database each time, so the time is real work, not a hang.
