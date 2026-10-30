@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import { specs, type SpecRow } from "./schema";
+import { specs, type NewSpecRow, type SpecRow } from "./schema";
 import * as schema from "./schema";
 
 // Repository functions. Every function takes the owner ID and scopes its query to it,
@@ -41,6 +41,21 @@ export async function listSpecs(db: Db, ownerId: string): Promise<SpecSummary[]>
     .from(specs)
     .where(eq(specs.ownerId, ownerId))
     .orderBy(desc(specs.createdAt));
+}
+
+// Updates the owner's spec and bumps updated_at. Returns null when no row matches.
+export async function updateSpec(
+  db: Db,
+  ownerId: string,
+  id: string,
+  values: Partial<Omit<NewSpecRow, "id" | "ownerId" | "createdAt">>,
+): Promise<SpecRow | null> {
+  const [row] = await db
+    .update(specs)
+    .set({ ...values, updatedAt: new Date() })
+    .where(and(eq(specs.id, id), eq(specs.ownerId, ownerId)))
+    .returning();
+  return row ?? null;
 }
 
 // Returns true when a row was deleted.
