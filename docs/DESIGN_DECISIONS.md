@@ -66,9 +66,9 @@ The full log is [DECISIONS.md](../DECISIONS.md). This page keeps the decisions t
 - **Alternatives:** `@neondatabase/serverless` (a Neon-only HTTP driver); mocking the query chain (brittle, and it cannot test owner scoping).
 - **Consequence:** Two new dependencies. Both drivers satisfy one `Db` type, so typecheck confirms they match.
 
-### Every repository function takes the owner (30 Oct)
+### Every repository function takes the owner (30 Oct, widened on 31 Oct)
 - **Context:** A forgotten `where` clause would leak another owner's specs.
-- **Decision:** Every function in `src/lib/db/repo.ts` takes `ownerId` and filters on it. Another owner's ID returns "not found", the same as a missing ID.
+- **Decision:** Every function in `src/lib/db/repo.ts` takes an `Owner` and applies one scope from `src/lib/owner/scope.ts`. A guest's scope is the cookie with no `user_id`. A user's scope is the user's `user_id`. Another owner's spec returns "not found", the same as a missing ID.
 - **Alternatives:** A query-builder wrapper that adds the filter automatically. More abstraction, which I did not want.
 - **Consequence:** A test covers each function. The API takes the owner from the cookie, never from the request body.
 
@@ -76,7 +76,7 @@ The full log is [DECISIONS.md](../DECISIONS.md). This page keeps the decisions t
 - **Context:** The spec says middleware. Next.js 16 renamed it to `proxy`.
 - **Decision:** The cookie logic lives in `src/proxy.ts`. It is `httpOnly`, `sameSite=lax`, one year, and `secure` in production. The pure logic is in `src/lib/owner/owner.ts`, which is unit tested.
 - **Alternatives:** `middleware.ts`, which warns on every build in Next 16.
-- **Consequence:** No warnings on Next 16. Users have no accounts, so clearing cookies hides their specs.
+- **Consequence:** No warnings on Next 16. A guest has no account, so clearing the cookie hides their specs. A signed-in user is identified by the session instead, and keeps their specs in any browser.
 
 ### A missing owner cookie is a 401 on API routes (30 Oct)
 - **Context:** On a first visit, the proxy sets the cookie on the response, so the route handler cannot see it yet.
@@ -142,10 +142,75 @@ The full log is [DECISIONS.md](../DECISIONS.md). This page keeps the decisions t
 - **Alternatives:** Render Markdown in the browser (a second copy of the format to keep in sync).
 - **Consequence:** Copy needs one extra request. If the clipboard is unavailable, the UI points to Download.
 
+## Accounts and identity
+
+### Username and password, with no email anywhere (30 Oct)
+- **Context:** The owner wanted accounts without email. The spec rules out email in any form: no verification, no one-time codes, no social login, and no password reset.
+- **Decision:** Accounts use a username and a password only. Better Auth needs an email field, so each account gets the placeholder `<username>@users.invalid`. The `.invalid` domain is reserved, so it can never be routed. Verification is off, and the app sends nothing.
+- **Alternatives:** Real email for verification and reset (outside the spec); no library, with a hand-written password store (the spec forbids custom cryptography).
+- **Consequence:** A forgotten password cannot be recovered. The sign-up form says so, the privacy page says so, and the sign-up page needs an acknowledgement tick before it submits.
+
+### Better Auth behind a route gate (31 Oct)
+- **Context:** Better Auth is the stack choice in the spec. It ships password reset and verification routes, and the spec forbids both.
+- **Decision:** The library handles passwords, sessions and cookies. The app puts a gate in front of `/api/auth`. The gate allows four routes: `get-session`, `sign-in/username`, `sign-up/email` and `sign-out`. Every other path returns 404. The gate also applies the rate limits and the generic sign-in error.
+- **Alternatives:** Expose every library route and turn the unwanted ones off in configuration (a future config change could then turn a reset route back on); Auth.js (built around email providers).
+- **Consequence:** An upgrade of Better Auth must re-check the allowlist, and a test pins it. I chose to fail closed rather than trust the defaults.
+
+### Owner scope is one type, applied in one place (31 Oct)
+- **Context:** A signed-in user must see their specs in any browser. A guest must see only specs made in their browser, and a claimed spec must not be visible as a guest any more.
+- **Decision:** `Owner` is either a guest (cookie) or a user (session, plus the cookie). `specScope` in `src/lib/owner/scope.ts` builds the one filter. A guest sees `owner_id` equal to the cookie with `user_id` null. A user sees `user_id` equal to their id.
+- **Alternatives:** A separate table of owned specs; a per-query filter written in each function (easy to forget).
+- **Consequence:** Isolation tests cover each pair of owners, and each repository function takes the owner. Specs have `user_id` as text, because Better Auth ids are not uuids by default.
+
+### Claiming keeps the limit by taking the larger count (31 Oct)
+- **Context:** A guest who signs in should keep their specs. Claiming must not reset the day's limit.
+- **Decision:** Claiming sets `user_id` on the cookie's unclaimed specs only, so a second claim moves nothing. For the day, the user's usage becomes the larger of the user's and the guest's count.
+- **Alternatives:** Add the two counts (counts specs twice when both were used today); reset the guest counter (a user could claim again to reset it).
+- **Consequence:** Taking the maximum is slightly generous when a guest used several devices. It is simple to explain and test.
+
+### Usage is keyed by subject, and the migration is written by hand (31 Oct)
+- **Context:** Usage counters were keyed by the cookie. A signed-in user needs a counter of their own. `drizzle-kit generate` asks an interactive question when a column changes, which the shell cannot answer.
+- **Decision:** `usage` is keyed by `guest:<owner_id>` or `user:<user_id>`. The change is split into `0002_accounts` (generated) and `0003_usage_subject` (hand-written). The hand-written part rewrites existing rows to the guest form before the old column is dropped.
+- **Alternatives:** Drop the table (loses the counts); run generate in a terminal (not possible here).
+- **Consequence:** The hand-written snapshot must be checked if `drizzle-kit generate` ever reports unexpected changes to `usage`.
+
+### Rate limits live in Postgres, and a username locks with doubling (30 Oct)
+- **Context:** Serverless instances do not share memory, so an in-memory limiter would not hold.
+- **Decision:** Counters are rows in `rate_limit`, updated with conditional upserts. Sign-in is limited to 20 attempts per IP in 15 minutes. A username locks from its 5th consecutive failure for 1 minute, doubling each further failure to a 60-minute cap. A success resets it. Sign-up is limited to 5 per IP per hour.
+- **Alternatives:** Redis (a new service for a small app); in-memory counters (lost between instances).
+- **Consequence:** The limits are best effort. The IP comes from the forwarded header, which a client can set on some hosts. The docs say so, and the global budget is the backstop.
+
+### Abuse limits are accepted, not solved (30 Oct)
+- **Context:** A guest who clears the cookie gets a new guest allowance. A bot can create accounts from many addresses. The spec says there is no CAPTCHA.
+- **Decision:** Accept both. The global daily budget caps the total provider spend, whoever sends the requests.
+- **Alternatives:** A CAPTCHA (a third-party service, and bot-detection bypass is out of scope); tying guest limits to an IP (a second identity to reconcile).
+- **Consequence:** The free quota is protected by the budget, not by identity. The README says this plainly.
+
+### The global budget is reserved before every provider request (31 Oct)
+- **Context:** Free quota is shared by every visitor. Per-owner limits alone do not protect it. The LLM client calls one hook before every provider request, including fallbacks and repairs.
+- **Decision:** `specCallReservation` reserves one spec call and then one unit of `GLOBAL_DAILY_LLM_CALL_BUDGET`. When the budget is used up, the request returns 429 `demo_capacity` before any provider is contacted.
+- **Alternatives:** Count specs instead of requests (one spec can take up to 12 requests, so specs do not measure cost); a provider dashboard limit (not reliable on free tiers).
+- **Consequence:** A refusal on the spec cap still leaves the budget unchanged, but a refusal on the budget leaves the spec count one higher. Neither refusal reaches a provider.
+
+### Password rules follow length, not composition (30 Oct)
+- **Context:** Composition rules (a symbol and a number) push people toward predictable patterns.
+- **Decision:** Passwords are 10 to 128 characters with no composition rules. A short list of very common passwords is refused. Usernames are 3 to 24 letters, digits or underscores.
+- **Alternatives:** A breached-password service (an external call and a new dependency); composition rules.
+- **Consequence:** The common-password list is short and will not catch everything. The docs describe it as a basic check.
+
+## Theme
+
+### Light, dark and system theme (30 Oct)
+- **Context:** The spec was changed to add a three-state switch: Light, Dark and System, with System as the default. The choice must apply before first paint, so no wrong theme flashes.
+- **Decision:** The choice is stored in `localStorage`. An inline script in `<head>` sets `data-theme` on `<html>` before React loads. The colours are CSS variables, with the dark values in `:root` and the light values in `:root[data-theme="light"]`. The light theme is designed for the light background, not inverted from the dark one.
+- **Alternatives:** `next-themes` (a library outside the two the spec allows); Tailwind `dark:` variants (every utility written twice); a class-based switch (needs a script anyway).
+- **Consequence:** Every new colour needs a light value and a contrast check. A test checks both token sets against WCAG AA and that the CSS matches the TypeScript tokens. Shadows, glows and badge tints use variables too.
+
 ## Product and UI
 
 ### Dark-first theme, two UI dependencies (30 Oct)
 - **Context:** The first UI was a plain form. The product should feel like a modern AI tool. The spec excluded a theme switch.
+- **Superseded:** On 30 Oct the spec was changed to add a Light, Dark and System switch. See [Light, dark and system theme](#light-dark-and-system-theme-30-oct). The dark tokens and motion rules below still hold.
 - **Decision:** One dark theme, no switch. `framer-motion` and `lucide-react` are the only new libraries. Inter and Geist Mono load with `next/font`.
 - **Alternatives:** A light theme with a toggle (more work, not asked for); a component kit such as shadcn (a different look and a larger dependency).
 - **Consequence:** Every animated component has a reduced-motion path. A test checks that text colours meet WCAG AA contrast, and that the CSS variables match the TypeScript tokens.
@@ -225,3 +290,23 @@ The full log is [DECISIONS.md](../DECISIONS.md). This page keeps the decisions t
 ### `/api/health` was missing
 - **What happened:** The spec lists `GET /api/health`, but no route existed. The smoke test would have returned 404.
 - **Fix:** Added the route. It does not touch the database, so it answers even when Neon is asleep.
+
+### A running dev server kept serving the old stylesheet
+- **What happened:** During the theme check, a dev server that was already running served the old `globals.css`. The toggle changed the attribute, but the colours did not change. A second `next dev` refused to start because of the lock.
+- **Fix:** The theme was checked on a production build on another port. The stale server was left running, and a restart clears it.
+
+### Raw SQL rejected `Date` parameters on Neon
+- **What happened:** The rate limiter passed `Date` objects into `sql` templates. The PGlite tests accepted them, but the Neon driver failed with `ERR_INVALID_ARG_TYPE`, so every sign-up returned a 500. The unit tests had not caught it, because PGlite is more lenient.
+- **Fix:** The raw SQL takes ISO strings with an explicit `::timestamptz` cast. Typed Drizzle columns still take `Date` objects. The lesson is that a unit test on a different driver does not prove the production path, so the e2e test covers sign-up on the real database.
+
+### Pages with headers under `cacheComponents` must opt in
+- **What happened:** The new not-found, sign-in, sign-up and privacy pages read headers through the header component. The production build tried to prerender them and failed.
+- **Fix:** Those pages call `connection()` and export `instant = false`, the same pattern as the home page.
+
+### A sign-up takes about six seconds on Neon
+- **What happened:** Sign-up hashes the password and writes a user, an account and a session, one query at a time over a single connection. The end-to-end test waited 15 seconds for the redirect and timed out on some runs.
+- **Fix:** The expect timeout is 45 seconds in `playwright.config.ts`. The time is real database latency, not a hang. Reducing it would mean connection pooling, which I did not add for a single-user app.
+
+### End-to-end tests started signed out
+- **What happened:** Playwright gives each test a fresh browser context, so a test that expected a signed-in menu found none. A second problem was that Next's route announcer is also an `alert`, so a plain alert locator matched two elements.
+- **Fix:** Each test that needs the account signs in first, through one helper. The locator targets the form's own alert paragraph.
