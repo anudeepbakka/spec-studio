@@ -290,3 +290,13 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 **Decision:** The eval runs only when the user asks. `--limit N` runs the first N cases, and `--cases` and `--out` pick a set of cases and a results file. This keeps runs small during development.
 **Alternatives:** Run all eight cases every time (uses too much quota on free tiers).
 **Consequence:** Results from different runs are kept in separate files under evals/results.
+
+## 2026-10-30: Screenshots use Playwright against a seeded demo owner
+**Context:** SPEC §13 and TASKS T8 need `npm run screenshots` to capture Home, a mid-interview state with the coverage panel, Generating, Result, and History from a seeded demo spec.
+**Decision:** Playwright (devDependency, Chromium only) drives the running dev server. `scripts/screenshots.mts` seeds five specs under a fixed demo owner UUID and sets the `ss_owner` cookie to that UUID, so real owners' specs are never read or deleted. Seeding writes straight through the repo functions, with no LLM calls. The script is `.mts` because the package is not `"type": "module"`, and top-level await needs ESM under tsx.
+**Alternatives:** Playwright's own web server config (starts Next and seeds in a fixture); seeding through the HTTP routes (needs LLM calls for the interview).
+**Consequence:** The script needs DATABASE_URL and a running dev server. It deletes the demo owner's earlier specs on each run. Playwright is a dev dependency only; SPEC §3 allows it for screenshots.
+
+## Problem: Missing /api/health route
+**What happened:** SPEC §10 lists `GET /api/health` (`{ ok: true }`), but no route existed; the smoke test would have returned 404.
+**Fix:** Added `src/app/api/health/route.ts`. It does not touch the database, so it still answers when Neon is asleep.

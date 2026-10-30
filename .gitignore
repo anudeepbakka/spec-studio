@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 !.env.example
 RESUME_NOTES.md
+
+# screenshots (npm run screenshots)
+/screenshots/
