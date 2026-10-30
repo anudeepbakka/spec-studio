@@ -188,7 +188,7 @@ docs/                 documentation (this folder)
 - **Keyword metrics are proxies.** Follow-up and assumption checks use word overlap, not a judgement of quality. They are documented as such in the results.
 - **Accounts have no email, verification or password reset, by design.** A forgotten password means losing the account and its specs. Sign-up and sign-in limits are stored in Postgres and are best effort, not a security boundary. There is no CAPTCHA.
 - **Guests are identified by a cookie.** Clearing the cookie hides a guest's specs, and they cannot be recovered from another browser. Sign in to keep specs across browsers.
-- **The live demo may run an earlier version.** The accounts and theme work is in the repository. Redeploy after the environment variables are set.
+- **The live demo runs the code in this repository.** It was redeployed after the accounts and theme work, with the environment variables set.
 - **No spec editing.** Regenerate or copy only, as the spec defines.
 
 Design choices and the problems behind them are in [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md).
