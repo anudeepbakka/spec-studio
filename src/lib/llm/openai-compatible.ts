@@ -43,7 +43,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
           model: config.model,
           messages: req.messages,
           stream,
-          ...(req.json && !stream ? { response_format: { type: "json_object" } } : {}),
+          ...(req.json ? { response_format: { type: "json_object" } } : {}),
         }),
         signal,
       });
