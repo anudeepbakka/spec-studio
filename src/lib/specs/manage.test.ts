@@ -20,7 +20,7 @@ beforeEach(async () => {
   const instance = drizzle(client, { schema });
   await migrate(instance, { migrationsFolder: "./drizzle" });
   const db = instance as unknown as Db;
-  deps = { db, llm: createLLMClient({ providers: [], log: () => {} }), dailyLimit: 10 };
+  deps = { db, llm: createLLMClient({ providers: [], log: () => {} }), dailySpecLimit: 5 };
 });
 
 describe("owner-scoped list, read and delete", () => {

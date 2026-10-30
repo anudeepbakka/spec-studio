@@ -22,6 +22,29 @@ export function specIdFrom(id: string): string {
   return parsed.data;
 }
 
+// Like readJson, but an empty body is allowed and parses as `{}`. Used where the body is optional (interview next).
+export async function readOptionalJson<T>(request: Request, schema: ZodType<T>): Promise<T> {
+  const text = await request.text();
+  if (text.trim() === "") {
+    const parsed = schema.safeParse({});
+    if (!parsed.success) {
+      throw new ApiError(400, "invalid_input", parsed.error.issues[0]?.message ?? "The request is invalid.");
+    }
+    return parsed.data;
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new ApiError(400, "invalid_json", "The request body must be JSON.");
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    throw new ApiError(400, "invalid_input", parsed.error.issues[0]?.message ?? "The request is invalid.");
+  }
+  return parsed.data;
+}
+
 // Parses the JSON body with a Zod schema. Schema messages are written to be shown to users.
 export async function readJson<T>(request: Request, schema: ZodType<T>): Promise<T> {
   let body: unknown;

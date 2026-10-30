@@ -34,7 +34,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   *Done when:* the full flow works in the browser on desktop and mobile widths; every error state in SPEC §12 is visible and friendly.
   *The question-first wizard is replaced by T6a and T6b. Kept as history.*
 
-- [ ] **T6a Adaptive interview: backend.**
+- [x] **T6a Adaptive interview: backend.**
   Replace the one-shot questions with an adaptive interview (SPEC §4, §5, §6, §8, §9, §10, §12).
   - Zod schemas for `Turn`, `Coverage`, `InterviewTurnResponse`, and the server-assigned question IDs. Interview `superRefine` checks.
   - Prompts v2: the question prompt (one question per turn, min 4 and max 8 resolved turns, full transcript as input) and the spec prompt built from the full transcript.
@@ -46,7 +46,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   - Tests per SPEC §13: turn schema, state machine (min 4, max 8, forced done, finish early, undo, resume), prompt includes full history, per-spec call cap, daily spec limit.
   - *Done when:* all checks pass; a full interview and generation work from the UI; later questions visibly refer to earlier answers; undo, finish early, and resume after reload work; the call cap and daily limit are enforced in tests and in the UI; a legacy spec opens read-only.
 
-- [ ] **T6b Rich UI redesign.**
+- [x] **T6b Rich UI redesign.**
   Implement SPEC §11 on top of T6a: dark-first tokens, Inter and Geist Mono, glass cards, framer-motion, lucide-react, and the five screens (Home, Interview, Generating, Result, History). Primitives in `src/components/ui/`.
   - Log the new dependencies and the dark-first decision in DECISIONS.md.
   - *Done when:* all five screens match SPEC §11; they work at 375px and on desktop; the full interview can be completed with the keyboard; contrast passes WCAG AA on the dark theme; reduced motion is respected; the empty, loading, and error states from SPEC §12 are visible; and I confirm the look.

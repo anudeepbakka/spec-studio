@@ -1,9 +1,10 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { readApiFailure } from "@/lib/specs/client";
-import { DANGER_BUTTON } from "./ui";
+import { Button } from "./ui/Button";
 
 // SPEC §11: deletes a spec after a confirmation. On the result page, `redirectTo` leaves the deleted spec's URL.
 export function DeleteSpecButton({ id, redirectTo }: { id: string; redirectTo?: string }) {
@@ -34,11 +35,12 @@ export function DeleteSpecButton({ id, redirectTo }: { id: string; redirectTo?: 
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <button type="button" onClick={remove} disabled={busy} className={DANGER_BUTTON}>
-        {busy ? "Deleting..." : "Delete"}
-      </button>
+      <Button variant="danger" onClick={remove} disabled={busy} aria-label="Delete spec" className="px-3">
+        <Trash2 size={16} aria-hidden="true" />
+        <span>{busy ? "Deleting..." : "Delete"}</span>
+      </Button>
       {error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { sampleSpec } from "@/test/sample-spec";
-import { QuestionsResponseSchema, type Question } from "./questions";
 import { SpecSchema, type Spec } from "./spec";
 
 // Returns every error message from a failed parse, or [] if the input is valid.
@@ -94,40 +93,3 @@ describe("SpecSchema", () => {
   });
 });
 
-describe("QuestionsResponseSchema", () => {
-  const question = (id: string, type: Question["type"] = "text", options?: string[]): Question => ({
-    id,
-    question: "Who uses this?",
-    why: "Roles decide the permissions.",
-    type,
-    options,
-  });
-
-  it("accepts four to eight questions with unique IDs", () => {
-    const questions = ["Q1", "Q2", "Q3", "Q4"].map((id) => question(id));
-    expect(QuestionsResponseSchema.safeParse({ questions }).success).toBe(true);
-  });
-
-  it("rejects a choice question without options", () => {
-    const questions = [
-      question("Q1", "choice"),
-      question("Q2"),
-      question("Q3"),
-      question("Q4"),
-    ];
-    const result = QuestionsResponseSchema.safeParse({ questions });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects duplicate question IDs", () => {
-    const questions = [question("Q1"), question("Q1"), question("Q3"), question("Q4")];
-    const result = QuestionsResponseSchema.safeParse({ questions });
-    expect(result.success).toBe(false);
-    expect(result.error?.issues.map((issue) => issue.message)).toContain('duplicate question ID "Q1"');
-  });
-
-  it("rejects fewer than four questions", () => {
-    const questions = [question("Q1"), question("Q2")];
-    expect(QuestionsResponseSchema.safeParse({ questions }).success).toBe(false);
-  });
-});
