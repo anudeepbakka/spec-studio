@@ -1,5 +1,5 @@
 import { ApiError } from "../api/errors";
-import { createSpec, getSpec, reserveLlmRun, updateSpec, type Db } from "../db/repo";
+import { createSpec, deleteSpec, getSpec, listSpecs, reserveLlmRun, updateSpec, type Db } from "../db/repo";
 import type { SpecRow } from "../db/schema";
 import type { LLMClient } from "../llm/client";
 import { buildQuestionsMessages, PROMPT_VERSION } from "../prompts";
@@ -35,6 +35,19 @@ export async function findOwnedSpec(db: Db, ownerId: string, id: string): Promis
     throw new ApiError(404, "not_found", "Spec not found.");
   }
   return spec;
+}
+
+// Lists the owner's specs, newest first (SPEC §10).
+export async function listOwnedSpecs(deps: SpecDeps, ownerId: string) {
+  return listSpecs(deps.db, ownerId);
+}
+
+// Deletes one of the owner's specs. Another owner's ID gets the same 404 as a missing one.
+export async function deleteOwnedSpec(deps: SpecDeps, ownerId: string, id: string): Promise<void> {
+  const deleted = await deleteSpec(deps.db, ownerId, id);
+  if (!deleted) {
+    throw new ApiError(404, "not_found", "Spec not found.");
+  }
 }
 
 export async function createDraft(deps: SpecDeps, ownerId: string, rawRequest: string) {
