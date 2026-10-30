@@ -5,7 +5,7 @@ Turns a rough feature request into a developer-ready spec by asking one question
 [![CI](https://github.com/anudeepbakka/spec-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/anudeepbakka/spec-studio/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Live demo:** TODO (add the Vercel URL)
+**Live demo:** [spec-studio-nine.vercel.app](https://spec-studio-nine.vercel.app/)
 
 ![Interview in progress: the conversation on the left, the understanding panel and coverage meter on the right](docs/images/interview-mid.png)
 
