@@ -55,8 +55,8 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   `evals/cases.json` (8 generic cases per SPEC §13, each with `clarifications: string[]`). `npm run eval` runs an interview per case: the first question, then each pre-written clarification as the answer in order, stopping on LLM done, when the list runs out (finish early if at least 3 answers), or at 8 turns. Then generate. Results to `evals/results/latest.json` with the metrics in SPEC §13, including the interview and adaptive follow-up metrics and LLM calls per case (must stay at or under 12).
   *Done when:* eval runs end to end against real providers and prints a summary table; Vitest covers the metric functions (follow-up check, assumption check, turn range).
 
-- [ ] **T8 Polish and deploy.**
+- [x] **T8 Polish and deploy.**
   Loading, empty, and error states for the interview and the new screens (SPEC §11, §12); basic accessibility (labels, focus, contrast, aria-live for questions and errors); `npm run screenshots` (Playwright, seeded demo spec) covering Home, a mid-interview state with the coverage panel, Generating, Result, and History; deploy to Vercel with Neon Postgres; set env vars (including `DAILY_SPEC_LIMIT`); smoke-test the live URL.
   *Done when:* live demo works; the SPEC §15 acceptance criteria (AC-1 to AC-15) all pass manually.
 
-- [ ] **T9 Sign-off.** Only when the user says so: run `/signoff`.
+- [x] **T9 Sign-off.** Only when the user says so: run `/signoff`.
