@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`toMarkdown > matches the snapshot for a valid spec 1`] = `
+"# Password reset by email
+> Registered users can reset a forgotten password from a link sent to their email address.
+
+## Goals
+- Let users regain access without contacting support
+- Keep reset links short-lived and single-use
+
+## User stories
+
+### US-1 (must): As a registered user, I want to reset a forgotten password from a link sent to my email, so that I can regain access without contacting support
+
+**Acceptance criteria**
+- AC-1.1: **Given** I am on the sign-in page, **when** I request a reset for my registered email, **then** I receive an email with a reset link within 2 minutes
+- AC-1.2: **Given** I open a valid reset link, **when** I enter and confirm a new password, **then** my password is updated and I can sign in with it
+
+### US-2 (must): As a registered user, I want the reset link to expire after a set time, so that old links cannot be used
+
+**Acceptance criteria**
+- AC-2.1: **Given** a reset link is older than 30 minutes, **when** I open it, **then** I see an expired-link message and a button to request a new link
+- AC-2.2: **Given** I have already used a reset link, **when** I open the same link again, **then** I see a message that the link has already been used
+
+### US-3 (should): As a support agent, I want to see when a password reset was requested for an account, so that I can answer customer questions quickly
+
+**Acceptance criteria**
+- AC-3.1: **Given** a reset was requested for an account, **when** I open that account in the support view, **then** the request time is listed
+- AC-3.2: **Given** no reset was requested for an account, **when** I open that account in the support view, **then** the reset history is shown as empty
+
+## Edge cases
+| ID | Scenario | Expected behavior | Related |
+|---|---|---|---|
+| EC-1 | A reset is requested for an email that is not registered | The same confirmation message is shown and no email is sent | US-1 |
+| EC-2 | A reset link is clicked after it has expired | The user sees an expired-link message with a button to request a new link | US-2 |
+| EC-3 | A reset link is used twice | The second use is rejected | US-2 |
+
+## Open questions
+- Is 30 minutes the right link lifetime? (Assumed for now)
+- Is there a limit on reset requests per hour per account?
+
+## Task breakdown
+| ID | Task | Size | Depends on | Stories |
+|---|---|---|---|---|
+| T-1 | Create reset token storage | S | - | US-1, US-2 |
+| T-2 | Request reset endpoint | M | T-1 | US-1 |
+| T-3 | Send reset email | S | T-2 | US-1 |
+| T-4 | Reset form and password update | M | T-1, T-2 | US-1, US-2 |
+| T-5 | Reset history in support view | M | T-1 | US-3 |
+
+Generated with Spec Studio
+"
+`;
