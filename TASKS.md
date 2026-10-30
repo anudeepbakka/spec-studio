@@ -11,7 +11,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   Zod schemas from SPEC §6 including referential-integrity checks (`superRefine`). `toMarkdown(spec)` exporter per SPEC §7.
   *Done when:* unit tests cover valid spec, each invalid case (duplicate IDs, bad references, dependency cycle, too few criteria), and a snapshot of the exported Markdown.
 
-- [ ] **T2 LLM provider layer.**
+- [x] **T2 LLM provider layer.**
   `src/lib/llm/`: `LLMProvider` interface, OpenAI-compatible client, provider registry from env, ordered fallback, 60s cooldown after 429, timeout, JSON extraction (strip code fences) + Zod validate + one repair retry (SPEC §8).
   *Done when:* tests with mocked `fetch` cover success, 429 then fallback, invalid JSON then repair success, repair failure then next provider, all providers failing (typed error).
 

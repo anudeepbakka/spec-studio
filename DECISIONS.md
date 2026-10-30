@@ -48,6 +48,30 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 **What happened:** The first test run failed with `Cannot find package '@/test/sample-spec'`. The tests and the app compiled fine under TypeScript, but Vitest resolves modules with Vite, which ignores tsconfig `paths`.
 **Fix:** Added the alias to `vitest.config.mts` (see above).
 
+## 2026-10-30: Missing key skips a provider, missing model fails startup
+**Context:** SPEC §8 says a provider without a key is skipped. SPEC §14 says to fail with a clear message when a listed provider's key or model is missing. The two conflict.
+**Decision:** No key means skip, so one configured provider is enough to run. A key with no model throws a clear error naming the env var.
+**Alternatives:** Fail on any missing key (§14 literal); skip on a missing model too.
+**Consequence:** A half-configured provider is caught immediately, and an intentionally unused provider doesn't break startup.
+
+## 2026-10-30: Fallback on any provider failure, cooldown only on 429
+**Context:** SPEC §8 lists 429, 5xx, timeout and network errors as fallback triggers. Other 4xx responses (such as a bad key) are not listed.
+**Decision:** Any `ProviderError` moves to the next provider. A 429 also puts that provider on a 60 second cooldown. Other errors are not cooled down.
+**Alternatives:** Fall back only on the listed errors, so a 401 fails the whole request.
+**Consequence:** A misconfigured provider costs one failed call per request, but the app still answers from the others.
+
+## 2026-10-30: Repair call lives in the LLM layer for now
+**Context:** SPEC §8 requires one repair call. SPEC §9 puts prompts in `src/lib/prompts`, which T4 builds.
+**Decision:** `buildRepairMessages` is in `src/lib/llm/json.ts`. It appends the bad output and the validation errors to the original message history.
+**Alternatives:** Build the repair prompt in T2 under `src/lib/prompts`, which T4 would then extend.
+**Consequence:** T2 is self-contained. T4 may move the repair wording into the prompts module.
+
+## 2026-10-30: Streaming fallback is deferred to T5
+**Context:** `chatStream` exists on every provider, and SSE parsing is covered by tests. Streaming needs a fallback rule (only before the first chunk, for example).
+**Decision:** The client exposes `chat` and `generateJson` with fallback. Streaming is called directly on a provider for now.
+**Alternatives:** Build stream fallback now, without a consumer.
+**Consequence:** T5 defines the stream fallback rule when the endpoint needs it.
+
 ## 2026-10-30: Env contract checked by a unit test
 **Context:** SPEC §14 is the env contract, and `.env.example` could drift from it.
 **Decision:** `src/env.test.ts` asserts the keys in `.env.example` match SPEC §14, in order.
