@@ -2,7 +2,7 @@
 
 Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
 
-- [ ] **T0 Scaffold.**
+- [x] **T0 Scaffold.**
   Next.js (App Router) + TypeScript strict + Tailwind + ESLint + Vitest + Drizzle config. npm scripts from CLAUDE.md.
   `.env.example` (SPEC §14), `.gitignore` (env, `RESUME_NOTES.md`, `.next`), short README stub, GitHub Actions CI (lint, typecheck, test).
   *Done when:* `npm run dev` shows a placeholder home page; CI file exists; all checks pass.
