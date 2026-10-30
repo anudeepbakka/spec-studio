@@ -1,3 +1,4 @@
+import type { Owner } from "@/lib/owner/scope";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -14,8 +15,8 @@ import { exportFilename } from "./export";
 import { startGeneration, runGeneration, type GenerationEvent } from "./generate";
 import { createDraft, type SpecDeps } from "./service";
 
-const OWNER_A = "11111111-1111-4111-8111-111111111111";
-const OWNER_B = "22222222-2222-4222-8222-222222222222";
+const OWNER_A: Owner = { kind: "guest", ownerId: "11111111-1111-4111-8111-111111111111" };
+const OWNER_B: Owner = { kind: "guest", ownerId: "22222222-2222-4222-8222-222222222222" };
 const REQUEST = "Let users reset a forgotten password by email link.";
 const validSpecJson = JSON.stringify(sampleSpec);
 
@@ -47,7 +48,7 @@ let sent: ChatRequest[];
 
 function depsWith(replies: Array<string | ProviderError>, dailySpecLimit = 5): SpecDeps {
   sent = [];
-  return { db, llm: createLLMClient({ providers: [scripted(replies, sent)], log: () => {} }), dailySpecLimit };
+  return { db, llm: createLLMClient({ providers: [scripted(replies, sent)], log: () => {} }), dailySpecLimit, dailySpecLimitUser: 8, globalCallBudget: 600 };
 }
 
 // An interview that has ended after four answers, ready to generate.

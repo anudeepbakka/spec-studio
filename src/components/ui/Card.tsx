@@ -4,7 +4,7 @@ import type { HTMLAttributes } from "react";
 export function Card({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={`rounded-2xl border border-border bg-glass shadow-[0_20px_50px_-30px_rgba(0,0,0,0.8)] backdrop-blur-md ${className}`}
+      className={`rounded-2xl border border-border bg-glass shadow-[var(--shadow-card)] backdrop-blur-md ${className}`}
       {...props}
     />
   );

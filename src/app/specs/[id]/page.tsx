@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { z } from "zod";
 import { AppHeader } from "@/components/AppHeader";
+import { GuestBanner } from "@/components/GuestBanner";
 import { SpecWizard } from "@/components/SpecWizard";
 import { getSpec } from "@/lib/db/repo";
-import { currentOwnerId } from "@/lib/owner/current";
+import { currentOwner, currentUser } from "@/lib/auth/identity";
 import { getDeps } from "@/lib/server/deps";
 import { toSpecView } from "@/lib/specs/view";
 
@@ -19,15 +20,20 @@ export default async function SpecPage({ params }: Props) {
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
 
-  const ownerId = await currentOwnerId();
-  if (!ownerId) notFound();
+  const owner = await currentOwner();
+  if (!owner) notFound();
 
-  const row = await getSpec(getDeps().db, ownerId, id);
+  const row = await getSpec(getDeps().db, owner, id);
   if (!row) notFound();
 
   return (
     <>
       <AppHeader />
+      {(await currentUser()) ? null : (
+        <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+          <GuestBanner />
+        </div>
+      )}
       <SpecWizard initial={toSpecView(row)} />
     </>
   );

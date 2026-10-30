@@ -61,11 +61,11 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
 
 - [x] **T9 Sign-off.** Only when the user says so: run `/signoff`.
 
-- [ ] **T10 Light, dark and system theme.**
+- [x] **T10 Light, dark and system theme.**
   A 3-state toggle (Light, Dark, System) in the header, default System. Choice saved in `localStorage` (`spec-studio-theme`) and applied by an inline script before first paint (SPEC §11). Tokens for both themes; the dark look stays and a designed light theme is added. WCAG AA in both themes for text, badges, focus rings and the coverage meter. Playwright screenshots capture both themes. Log the no-library choice in DECISIONS.md.
   *Done when:* every screen (home, interview, generating, result, history, error states, sign-in, sign-up) is checked in both themes at 375px and desktop; contrast passes AA in both; reduced motion is respected; Vitest or Playwright tests cover toggle sets the attribute, the choice persists after reload, and System follows `prefers-color-scheme` (AC-16, AC-17).
 
-- [ ] **T11 Authentication with username and password.**
+- [x] **T11 Authentication with username and password.**
   Better Auth (email/password plus username plugin) with its Drizzle adapter on the same Neon Postgres, database sessions, routes under `/api/auth`. Placeholder email `<username>@users.invalid`, no email sending, no verification, no password reset (SPEC §17). Env vars `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` added to `.env.example`. Credential rules, DB-backed rate limits, and the common-password list per §17. Guest mode kept: `getOwner(request)` is used by every spec route, usage and limit check. Signed-in limit `DAILY_SPEC_LIMIT_USER` (default 8). `GLOBAL_DAILY_LLM_CALL_BUDGET` (default 600) across owners, reserved in the database before each provider request. Claim guest specs (idempotent, own cookie only, usage merged by maximum). Delete account removes specs, usage, sessions and account. Schema via a Drizzle migration: auth tables, `specs.user_id`, `usage` keyed by `subject`, `llm_budget`, `rate_limit`. Existing guest specs keep working. UI: header sign-in or user menu, sign-in and sign-up forms with show/hide password, guest banner, `/privacy`, the request-box notice. Tests per SPEC §13 (no real LLM keys in CI; test-only auth helper enabled only when `NODE_ENV=test`). Add `npm run test:e2e` (Playwright).
   *Done when:* AC-18 to AC-25 pass in tests and in the browser; `npm run typecheck`, `npm run lint`, `npm run test`, `npm run test:e2e` and `npm run build` all pass; the migration has been applied to Neon and the new env vars are set on Vercel before the next deploy (manual steps, listed in the T11 commit message and the README).
 

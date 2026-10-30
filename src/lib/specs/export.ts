@@ -1,3 +1,4 @@
+import type { Owner } from "../owner/scope";
 import { toMarkdown } from "../export/markdown";
 import { ApiError } from "../api/errors";
 import { SpecSchema } from "../schemas/spec";
@@ -16,10 +17,10 @@ export function exportFilename(title: string): string {
 
 export async function exportMarkdown(
   deps: SpecDeps,
-  ownerId: string,
+  owner: Owner,
   id: string,
 ): Promise<{ markdown: string; filename: string }> {
-  const row = await findOwnedSpec(deps.db, ownerId, id);
+  const row = await findOwnedSpec(deps.db, owner, id);
   if (row.status !== "done" || !row.spec) {
     throw new ApiError(409, "invalid_state", "The spec is not ready to export yet.");
   }

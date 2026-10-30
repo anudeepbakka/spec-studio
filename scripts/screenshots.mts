@@ -1,3 +1,4 @@
+import type { Owner } from "@/lib/owner/scope";
 // SPEC §15 / TASKS T8: screenshots of the five screens, using a seeded demo owner.
 // Run `npm run dev` first, then `npm run screenshots`. Needs DATABASE_URL in .env.local (the same database
 // the dev server uses). The demo owner is a fixed UUID, so real owners' specs are never touched.
@@ -10,7 +11,7 @@ import { createSpec, deleteSpec, listSpecs, updateSpec } from "@/lib/db/repo";
 import { sampleSpec } from "@/test/sample-spec";
 import type { Turn } from "@/lib/schemas/turn";
 
-const DEMO_OWNER = "5e7d0000-0000-4000-8000-000000000001";
+const DEMO_OWNER: Owner = { kind: "guest", ownerId: "5e7d0000-0000-4000-8000-000000000001" };
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:3000";
 const OUT_DIR = path.join(process.cwd(), "screenshots");
 const VIEWPORT = { width: 1280, height: 900 };
@@ -75,14 +76,6 @@ await updateSpec(db, DEMO_OWNER, done.id, { status: "done", title: sampleSpec.ti
 
 await mkdir(OUT_DIR, { recursive: true });
 const browser = await chromium.launch();
-const context = await browser.newContext({
-  viewport: VIEWPORT,
-  reducedMotion: "reduce",
-  colorScheme: "dark",
-});
-// The owner cookie decides which specs the pages show (SPEC §5).
-await context.addCookies([{ name: "ss_owner", value: DEMO_OWNER, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
-const page = await context.newPage();
 
 const shots: { file: string; path: string }[] = [
   { file: "home", path: "/" },
@@ -92,10 +85,34 @@ const shots: { file: string; path: string }[] = [
   { file: "history", path: "/history" },
 ];
 
-for (const shot of shots) {
-  await page.goto(`${BASE_URL}${shot.path}`, { waitUntil: "networkidle" });
-  await page.screenshot({ path: path.join(OUT_DIR, `${shot.file}.png`), fullPage: true });
-  console.log(`saved screenshots/${shot.file}.png`);
+// SPEC §11 / T10: every screen in both themes, at desktop and 375px. The theme is set through the saved choice,
+// the same key the toggle uses, so the real pre-paint script runs.
+const THEMES = ["dark", "light"] as const;
+const VIEWPORTS = [
+  { label: "desktop", size: VIEWPORT },
+  { label: "mobile", size: { width: 375, height: 812 } },
+] as const;
+
+for (const theme of THEMES) {
+  for (const viewport of VIEWPORTS) {
+    const context = await browser.newContext({
+      viewport: viewport.size,
+      reducedMotion: "reduce",
+      colorScheme: theme,
+    });
+    await context.addInitScript(`localStorage.setItem("spec-studio-theme", "${theme}");`);
+    // The owner cookie decides which specs the pages show (SPEC §5).
+    await context.addCookies([{ name: "ss_owner", value: DEMO_OWNER.ownerId, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
+    const page = await context.newPage();
+
+    for (const shot of shots) {
+      await page.goto(`${BASE_URL}${shot.path}`, { waitUntil: "networkidle" });
+      const file = `${shot.file}-${theme}-${viewport.label}.png`;
+      await page.screenshot({ path: path.join(OUT_DIR, file), fullPage: true });
+      console.log(`saved screenshots/${file}`);
+    }
+    await context.close();
+  }
 }
 
 await browser.close();

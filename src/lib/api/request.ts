@@ -1,17 +1,5 @@
-import type { NextRequest } from "next/server";
 import { z, type ZodType } from "zod";
-import { OWNER_COOKIE, resolveOwnerId } from "../owner/owner";
 import { ApiError } from "./errors";
-
-// Reads the owner from the cookie. The proxy sets the cookie on the first page visit,
-// so a request without one has no owner yet and is refused.
-export function ownerIdFrom(request: NextRequest): string {
-  const { ownerId, isNew } = resolveOwnerId(request.cookies.get(OWNER_COOKIE)?.value);
-  if (isNew) {
-    throw new ApiError(401, "owner_required", "Open the app in your browser first, so a session cookie is set.");
-  }
-  return ownerId;
-}
 
 // Spec IDs in the URL must be UUIDs. Anything else is "not found", so Postgres never sees a bad ID.
 export function specIdFrom(id: string): string {
@@ -59,3 +47,4 @@ export async function readJson<T>(request: Request, schema: ZodType<T>): Promise
   }
   return parsed.data;
 }
+

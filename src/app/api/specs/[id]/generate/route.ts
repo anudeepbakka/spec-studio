@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { describeError, errorResponse } from "@/lib/api/errors";
-import { ownerIdFrom, specIdFrom } from "@/lib/api/request";
+import { specIdFrom } from "@/lib/api/request";
+import { getOwner } from "@/lib/auth/identity";
 import { getDeps } from "@/lib/server/deps";
 import { runGeneration, startGeneration, type GenerationEvent } from "@/lib/specs/generate";
 
@@ -15,11 +16,11 @@ function formatSse(event: GenerationEvent): string {
 // POST /api/specs/:id/generate: streams progress, then the spec or an error. One LLM run.
 export async function POST(request: NextRequest, context: Context) {
   try {
-    const ownerId = ownerIdFrom(request);
+    const owner = await getOwner(request);
     const id = specIdFrom((await context.params).id);
     const deps = getDeps();
     // Refusals (not found, wrong state, daily limit) happen here, before the stream starts.
-    const input = await startGeneration(deps, ownerId, id);
+    const input = await startGeneration(deps, owner, id);
 
     const abort = new AbortController();
     request.signal.addEventListener("abort", () => abort.abort());
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest, context: Context) {
             // The stream is closed.
           }
         };
-        runGeneration(deps, ownerId, id, input, send, abort.signal)
+        runGeneration(deps, owner, id, input, send, abort.signal)
           .catch((error: unknown) => {
             // runGeneration reports its own failures. Anything here is a database error; log its name only.
             describeError(error);

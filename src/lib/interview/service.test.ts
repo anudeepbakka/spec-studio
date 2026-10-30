@@ -1,3 +1,4 @@
+import type { Owner } from "@/lib/owner/scope";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -12,8 +13,8 @@ import { DONE_REPLY, makeTurn, questionReply } from "../../test/interview-fixtur
 import type { Turn } from "../schemas/turn";
 import { interviewFinish, interviewNext, interviewUndo } from "./service";
 
-const OWNER_A = "11111111-1111-4111-8111-111111111111";
-const OWNER_B = "22222222-2222-4222-8222-222222222222";
+const OWNER_A: Owner = { kind: "guest", ownerId: "11111111-1111-4111-8111-111111111111" };
+const OWNER_B: Owner = { kind: "guest", ownerId: "22222222-2222-4222-8222-222222222222" };
 const REQUEST = "Let admins export order history as a CSV file.";
 
 // A provider that replays scripted replies and records every request it receives.
@@ -46,7 +47,7 @@ let sent: ChatRequest[];
 function depsWith(replies: Array<string | ProviderError>, dailySpecLimit = 5): SpecDeps {
   sent = [];
   const llm = createLLMClient({ providers: [scripted(replies, sent)], log: () => {} });
-  return { db, llm, dailySpecLimit };
+  return { db, llm, dailySpecLimit, dailySpecLimitUser: 8, globalCallBudget: 600 };
 }
 
 beforeEach(async () => {

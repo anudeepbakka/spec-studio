@@ -119,7 +119,7 @@ export function ResultStep({ id, spec, busy, readOnly = false, onRegenerate }: P
               <Card
                 key={story.id}
                 id={`story-${story.id}`}
-                className={`scroll-mt-24 space-y-4 p-5 transition duration-300 ${active ? "border-accent shadow-[0_0_0_1px_rgba(139,92,246,0.6)]" : ""}`}
+                className={`scroll-mt-24 space-y-4 p-5 transition duration-300 ${active ? "border-accent shadow-[0_0_0_1px_var(--ring-accent)]" : ""}`}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-xs text-muted">{story.id}</span>

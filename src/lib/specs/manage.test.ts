@@ -1,3 +1,4 @@
+import type { Owner } from "@/lib/owner/scope";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -9,8 +10,8 @@ import { createLLMClient } from "../llm/client";
 import { createDraft, deleteOwnedSpec, findOwnedSpec, listOwnedSpecs, type SpecDeps } from "./service";
 import { toSpecView } from "./view";
 
-const OWNER_A = "11111111-1111-4111-8111-111111111111";
-const OWNER_B = "22222222-2222-4222-8222-222222222222";
+const OWNER_A: Owner = { kind: "guest", ownerId: "11111111-1111-4111-8111-111111111111" };
+const OWNER_B: Owner = { kind: "guest", ownerId: "22222222-2222-4222-8222-222222222222" };
 const REQUEST = "Let users reset a forgotten password by email link.";
 
 let deps: SpecDeps;
@@ -20,7 +21,7 @@ beforeEach(async () => {
   const instance = drizzle(client, { schema });
   await migrate(instance, { migrationsFolder: "./drizzle" });
   const db = instance as unknown as Db;
-  deps = { db, llm: createLLMClient({ providers: [], log: () => {} }), dailySpecLimit: 5 };
+  deps = { db, llm: createLLMClient({ providers: [], log: () => {} }), dailySpecLimit: 5, dailySpecLimitUser: 8, globalCallBudget: 600 };
 });
 
 describe("owner-scoped list, read and delete", () => {

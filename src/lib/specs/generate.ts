@@ -1,3 +1,4 @@
+import type { Owner } from "../owner/scope";
 import { ApiError, describeError } from "../api/errors";
 import { updateSpec } from "../db/repo";
 import { buildSpecMessages, PROMPT_VERSION } from "../prompts";
@@ -25,8 +26,8 @@ export type GenerationInput = {
 const STALE_GENERATION_MS = 10 * 60_000;
 
 // Checks the interview is finished, then marks the spec as generating. Each LLM request is counted against the spec's call cap.
-export async function startGeneration(deps: SpecDeps, ownerId: string, id: string): Promise<GenerationInput> {
-  const spec = await findOwnedSpec(deps.db, ownerId, id);
+export async function startGeneration(deps: SpecDeps, owner: Owner, id: string): Promise<GenerationInput> {
+  const spec = await findOwnedSpec(deps.db, owner, id);
 
   if (isLegacySpec(spec)) {
     throw new ApiError(409, "legacy_spec", "This spec was made with the old question flow. It can only be viewed.");
@@ -41,7 +42,7 @@ export async function startGeneration(deps: SpecDeps, ownerId: string, id: strin
   }
 
   const input: GenerationInput = { rawRequest: spec.rawRequest, turns: readTurns(spec) };
-  await updateSpec(deps.db, ownerId, id, { status: "generating", errorMessage: null });
+  await updateSpec(deps.db, owner, id, { status: "generating", errorMessage: null });
   return input;
 }
 
@@ -49,7 +50,7 @@ export async function startGeneration(deps: SpecDeps, ownerId: string, id: strin
 // as status "failed" and sent as an error event. A cancelled run goes back to "interview_done".
 export async function runGeneration(
   deps: SpecDeps,
-  ownerId: string,
+  owner: Owner,
   id: string,
   input: GenerationInput,
   onEvent: (event: GenerationEvent) => void,
@@ -59,9 +60,9 @@ export async function runGeneration(
     const result = await deps.llm.generateJson(SpecSchema, buildSpecMessages(input.rawRequest, input.turns), {
       signal,
       onProgress: (chars) => onEvent({ type: "progress", chars }),
-      onRequest: specCallReservation(deps, ownerId, id),
+      onRequest: specCallReservation(deps, owner, id),
     });
-    await updateSpec(deps.db, ownerId, id, {
+    await updateSpec(deps.db, owner, id, {
       spec: result.value,
       status: "done",
       errorMessage: null,
@@ -72,11 +73,11 @@ export async function runGeneration(
     onEvent({ type: "spec", spec: result.value });
   } catch (error) {
     if (signal?.aborted) {
-      await updateSpec(deps.db, ownerId, id, { status: "interview_done", errorMessage: null });
+      await updateSpec(deps.db, owner, id, { status: "interview_done", errorMessage: null });
       return;
     }
     const { code, message } = describeError(error);
-    await updateSpec(deps.db, ownerId, id, { status: "failed", errorMessage: message });
+    await updateSpec(deps.db, owner, id, { status: "failed", errorMessage: message });
     onEvent({ type: "error", code, message });
   }
 }

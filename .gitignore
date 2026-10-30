@@ -44,3 +44,7 @@ RESUME_NOTES.md
 
 # screenshots (npm run screenshots)
 /screenshots/
+
+# playwright
+/test-results/
+/playwright-report/

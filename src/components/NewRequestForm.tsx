@@ -73,7 +73,7 @@ export function NewRequestForm() {
   return (
     <div className="space-y-4">
       <form onSubmit={submit} className="space-y-3">
-        <div className="rounded-2xl border border-border bg-glass p-3 shadow-[0_30px_60px_-40px_rgba(139,92,246,0.6)] backdrop-blur-md focus-within:border-accent/60">
+        <div className="rounded-2xl border border-border bg-glass p-3 shadow-[var(--shadow-prompt)] backdrop-blur-md focus-within:border-accent/60">
           <label htmlFor="raw-request" className="sr-only">
             Feature request
           </label>
