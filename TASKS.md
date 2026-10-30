@@ -59,4 +59,4 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   Loading, empty, and error states for the interview and the new screens (SPEC §11, §12); basic accessibility (labels, focus, contrast, aria-live for questions and errors); `npm run screenshots` (Playwright, seeded demo spec) covering Home, a mid-interview state with the coverage panel, Generating, Result, and History; deploy to Vercel with Neon Postgres; set env vars (including `DAILY_SPEC_LIMIT`); smoke-test the live URL.
   *Done when:* live demo works; the SPEC §15 acceptance criteria (AC-1 to AC-15) all pass manually.
 
-- [ ] **T9 Sign-off.** Only when the user says so: run `/signoff`.
+- [x] **T9 Sign-off.** Only when the user says so: run `/signoff`.
