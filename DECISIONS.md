@@ -300,3 +300,69 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 ## Problem: Missing /api/health route
 **What happened:** SPEC §10 lists `GET /api/health` (`{ ok: true }`), but no route existed; the smoke test would have returned 404.
 **Fix:** Added `src/app/api/health/route.ts`. It does not touch the database, so it still answers when Neon is asleep.
+
+## 2026-10-30: Scope change: accounts and a light theme are in; email and reset are out
+**Context:** The project was signed off with guest-only access and a dark-only theme. The owner wants username and password accounts and a light theme, while keeping email, one-time codes, social login, password reset by email, teams, roles, sharing and payments out.
+**Decision:** SPEC §2 non-goals updated: accounts and the theme switch move to scope (§17 and §11). Email in any form, OTP, social login, password reset, teams, roles, sharing and payments stay out. Tasks T10 to T12 added to TASKS.md.
+**Alternatives:** Keep accounts out and offer only a shared demo code (no per-user data); add email verification (needs an email provider and would break the no-email rule).
+**Consequence:** The 30 Oct entry that excluded a theme switch is superseded by the theme decision below. Specs and their owners are now tied to accounts, which needs a migration and a deploy step.
+
+## 2026-10-30: Theme toggle with an inline script, not a theme library
+**Context:** T10 needs Light, Dark and System, applied before first paint with no flash. SPEC §11 allows no new libraries beyond framer-motion and lucide-react.
+**Decision:** A small inline script in the document head reads the `localStorage` key `spec-studio-theme` and sets an attribute on `<html>` before the body renders. With no saved choice the default is System (`prefers-color-scheme`). Tokens are CSS variables for both themes.
+**Alternatives:** next-themes (works well, but it is a new dependency the spec does not allow without a logged exception); a server-side cookie for the theme (adds a request-time read to pages that are otherwise static).
+**Consequence:** No new dependency. The script must stay small and must use the stored key exactly. Tests check the attribute, persistence and the System default.
+
+## 2026-10-30: Better Auth with the username plugin, and a placeholder email
+**Context:** Accounts need passwords, sessions and a username, with no email and no custom cryptography. Better Auth's user model requires an email field.
+**Decision:** Better Auth with email and password support and the username plugin, using its Drizzle adapter on the existing Neon Postgres. Each account stores a placeholder email `<username>@users.invalid`. `.invalid` is reserved and never routable. The app never sends email, email verification is off, and password reset routes are not enabled. The library hashes passwords.
+**Alternatives:** Auth.js with a credentials provider (still needs our own password storage and session handling); Lucia (deprecated as a library); custom password hashing (not allowed by the working rules); asking for a real email (conflicts with the no-email rule).
+**Consequence:** Better Auth is a new dependency, and its SPEC §3 entry records this reason. The `user` table holds a placeholder email that nothing reads.
+
+## 2026-10-30: No password reset, and the sign-up warning says so
+**Context:** Without email there is no safe way to verify an address, so a reset link cannot be sent. An operator-run reset would let the operator take over any account.
+**Decision:** No password reset exists. The sign-up form shows a warning and requires a checkbox: there is no password reset, a lost password means the account and its specs cannot be recovered, and a password from another site should not be reused. The privacy page says the same.
+**Alternatives:** An operator reset (the operator could read or take over accounts, which is worse for the user); recovery codes shown once at sign-up (possible later, out of scope now).
+**Consequence:** Forgetting a password is permanent loss. This is a deliberate trade-off, and it is documented for users and in the docs.
+
+## 2026-10-30: Rate limits live in Postgres, not in memory
+**Context:** On Vercel, requests can run on different instances, so in-memory counters do not hold. The spec asks for per-IP and per-username sign-in limits with backoff, and a per-IP sign-up limit.
+**Decision:** A `rate_limit` table keyed by `signin:ip:<ip>`, `signin:user:<username>` and `signup:ip:<ip>`, updated with conditional statements. Per username: block for one minute after five consecutive failures, doubling up to a 60-minute cap. Per IP sign-in: 20 attempts per 15 minutes. Sign-up: 5 accounts per IP per hour. A success resets the username count.
+**Alternatives:** Redis or Upstash (a new service to run); the library's built-in rate limiter (not checked against the spec's per-username backoff, so I chose our own table to keep one store and exact rules).
+**Consequence:** Limits are best effort. The IP comes from the platform header, and a shared IP can be blocked by others. There is no CAPTCHA, by design.
+
+## 2026-10-30: Guest and user identity, and the owner columns
+**Context:** Guests are identified by the `ss_owner` cookie. Signed-in users need their specs everywhere, and existing guest specs must keep working. Every query already filters on an owner, and a missed filter would leak data.
+**Decision:** `specs` keeps `owner_id` (the guest cookie) and adds a nullable `user_id`. `getOwner(request)` returns `{ kind: "user", userId, ownerId }` or `{ kind: "guest", ownerId }`. A user's queries use `user_id`. A guest's queries use `owner_id` with `user_id IS NULL`. Claiming sets `user_id` on matching guest specs only.
+**Alternatives:** Replace `owner_id` with the user id on claim (loses the link to the browser and makes the guest rules harder to test); separate tables for guest and user specs (duplicated code paths).
+**Consequence:** Tests must cover both scopes and cross-scope access. Routes take identity only from `getOwner`, never from a request body.
+
+## 2026-10-30: Usage counters are keyed by subject, and a claim takes the larger count
+**Context:** Usage was keyed by `owner_id`. A signed-in user needs a counter of their own, and claiming guest specs must neither double-count nor reset a limit.
+**Decision:** `usage` is keyed by `subject` (`guest:<owner_id>` or `user:<user_id>`) and `day`. The migration rewrites existing rows to `guest:<owner_id>`. On claim, the user's counter for each claimed day becomes the larger of the user's and the guest's counts.
+**Alternatives:** Sum the two counts (double-counts specs already counted under the guest key on the same day); reset the guest counter on claim (a user could claim repeatedly to reset the guest limit).
+**Consequence:** Taking the maximum is slightly generous when a guest made specs on several devices. It is simple to explain and to test.
+
+## 2026-10-30: Global budget counts provider requests and reserves them first
+**Context:** Free LLM quota is shared by everyone. Per-owner limits do not protect it when guests can clear cookies to get a new allowance.
+**Decision:** `llm_budget` holds one row per UTC day with a call count. Every provider request reserves one unit with a conditional update before it is sent, as the per-spec cap does. When the budget is used up, the request returns 429 `demo_capacity` and no provider is called. The default is 600, set by `GLOBAL_DAILY_LLM_CALL_BUDGET`.
+**Alternatives:** Count specs instead of requests (one spec can use up to 12 requests, so specs do not measure cost); a provider dashboard limit (not reliably available on free tiers).
+**Consequence:** The budget can run out before the next UTC day, and then everyone is blocked until it resets. The message says so. This is the intended backstop.
+
+## 2026-10-30: Password rules follow length, not composition
+**Context:** Composition rules (a symbol and a number) push users toward predictable patterns, and the spec asks for a simple, testable rule.
+**Decision:** Passwords are 10 to 128 characters with no composition rules. A small list of very common passwords is blocked, kept in `src/lib/auth/`. Usernames are 3 to 24 characters, letters, digits and underscore, unique case-insensitively.
+**Alternatives:** A breached-password service (an external call and a new dependency); composition rules (weaker in practice and harder to explain).
+**Consequence:** The common-password list is short and will not catch everything. It is documented as a basic check.
+
+## 2026-10-30: Known abuse limits are accepted, with the budget as the backstop
+**Context:** A guest can clear the cookie and get a new guest allowance. A bot can create accounts from many IPs. The spec asks for per-IP sign-up limits and no CAPTCHA.
+**Decision:** Accept that a determined user can exceed the guest allowance by clearing cookies. The global daily budget caps total provider spend. Sign-up is limited per IP, documented as best effort.
+**Alternatives:** A CAPTCHA (a third-party service, and bot-detection bypass work is out of scope); a per-IP spec limit for guests (a second identity to reconcile; not requested).
+**Consequence:** The free quota is protected by the budget, not by identity. The docs say this plainly.
+
+## 2026-10-30: Deploy order for accounts
+**Context:** The live site on Vercel runs the guest-only code against the current Neon schema.
+**Decision:** Before the next deploy, apply the T11 migration to Neon and set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `DAILY_SPEC_LIMIT_USER` and `GLOBAL_DAILY_LLM_CALL_BUDGET` in Vercel. The migration rewrites `usage` keys, so it must run before the new code serves requests.
+**Alternatives:** Deploy code first (it would fail on the missing columns); keep the old usage key during a transition (adds code paths for no lasting benefit).
+**Consequence:** There is a short window where old code and the new schema must not run together. Run the migration as one step before the deploy.
