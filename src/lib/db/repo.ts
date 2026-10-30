@@ -1,6 +1,6 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import { specs, type NewSpecRow, type SpecRow } from "./schema";
+import { specs, usage, type NewSpecRow, type SpecRow } from "./schema";
 import * as schema from "./schema";
 
 // Repository functions. Every function takes the owner ID and scopes its query to it,
@@ -65,4 +65,20 @@ export async function deleteSpec(db: Db, ownerId: string, id: string): Promise<b
     .where(and(eq(specs.id, id), eq(specs.ownerId, ownerId)))
     .returning({ id: specs.id });
   return deleted.length > 0;
+}
+
+// Adds one LLM run to the owner's count for the day (UTC, YYYY-MM-DD), unless the day is already at the limit.
+// Returns false when the limit is reached. It is one statement, so parallel requests cannot go past the limit.
+export async function reserveLlmRun(db: Db, ownerId: string, day: string, limit: number): Promise<boolean> {
+  if (limit < 1) return false;
+  const rows = await db
+    .insert(usage)
+    .values({ ownerId, day, llmRuns: 1 })
+    .onConflictDoUpdate({
+      target: [usage.ownerId, usage.day],
+      set: { llmRuns: sql`${usage.llmRuns} + 1` },
+      setWhere: sql`${usage.llmRuns} < ${limit}`,
+    })
+    .returning({ llmRuns: usage.llmRuns });
+  return rows.length > 0;
 }

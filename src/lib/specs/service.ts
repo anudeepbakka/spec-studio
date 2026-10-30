@@ -1,5 +1,5 @@
 import { ApiError } from "../api/errors";
-import { createSpec, getSpec, updateSpec, type Db } from "../db/repo";
+import { createSpec, getSpec, reserveLlmRun, updateSpec, type Db } from "../db/repo";
 import type { SpecRow } from "../db/schema";
 import type { LLMClient } from "../llm/client";
 import { buildQuestionsMessages, PROMPT_VERSION } from "../prompts";
@@ -9,9 +9,27 @@ import { QuestionSchema, QuestionsResponseSchema, type Answer, type Question } f
 // SPEC §10: the spec steps before generation (draft, questions, answers).
 // Each function takes the owner ID, so every read and write is scoped to that owner.
 
-export type SpecDeps = { db: Db; llm: LLMClient };
+export type SpecDeps = { db: Db; llm: LLMClient; dailyLimit: number };
 
-async function findOwnedSpec(db: Db, ownerId: string, id: string): Promise<SpecRow> {
+// The UTC calendar day used for the daily limit (SPEC §10).
+function utcDay(now: Date): string {
+  return now.toISOString().slice(0, 10);
+}
+
+// Counts one LLM run against the owner's daily limit. Called before any provider is contacted,
+// so a request over the limit never costs a provider call (AC-7).
+export async function chargeLlmRun(deps: SpecDeps, ownerId: string): Promise<void> {
+  const allowed = await reserveLlmRun(deps.db, ownerId, utcDay(new Date()), deps.dailyLimit);
+  if (!allowed) {
+    throw new ApiError(
+      429,
+      "daily_limit",
+      `You have used all ${deps.dailyLimit} AI runs for today. The limit resets at 00:00 UTC.`,
+    );
+  }
+}
+
+export async function findOwnedSpec(db: Db, ownerId: string, id: string): Promise<SpecRow> {
   const spec = await getSpec(db, ownerId, id);
   if (!spec) {
     throw new ApiError(404, "not_found", "Spec not found.");
@@ -31,6 +49,8 @@ export async function generateQuestions(deps: SpecDeps, ownerId: string, id: str
   if (spec.status !== "draft" && spec.status !== "questions_ready") {
     throw new ApiError(409, "invalid_state", "Questions cannot be regenerated once answers are saved.");
   }
+
+  await chargeLlmRun(deps, ownerId);
 
   const result = await deps.llm.generateJson(
     QuestionsResponseSchema,

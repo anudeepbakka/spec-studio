@@ -46,7 +46,7 @@ let db: Db;
 
 function depsWith(replies: Array<string | ProviderError>): SpecDeps {
   const llm = createLLMClient({ providers: [scriptedProvider("groq", replies)], log: () => {} });
-  return { db, llm };
+  return { db, llm, dailyLimit: 10 };
 }
 
 beforeEach(async () => {

@@ -2,3 +2,4 @@
 export const PROMPT_VERSION = "v1";
 
 export { buildQuestionsMessages, QUESTIONS_SYSTEM_PROMPT } from "./questions";
+export { buildSpecMessages, SPEC_SYSTEM_PROMPT } from "./spec";

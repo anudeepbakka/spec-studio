@@ -23,7 +23,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   `src/lib/prompts/` (versioned, SPEC §9). `POST /api/specs`, `POST /api/specs/:id/questions`, `PUT /api/specs/:id/answers`.
   *Done when:* endpoints work with a real provider key; invalid input returns typed 400 errors; questions pass the Zod schema.
 
-- [ ] **T5 Spec generation endpoint with SSE and rate limit.**
+- [x] **T5 Spec generation endpoint with SSE and rate limit.**
   `POST /api/specs/:id/generate` streams `progress` events, validates with Zod at the end (repair retry), saves, emits `spec` or `error`. Daily cap per owner via `usage` table (SPEC §10). `GET /api/specs/:id/export`.
   *Done when:* a full flow works from curl; a 429 is returned when the cap is hit; failures leave the spec in `failed` status with a message.
 

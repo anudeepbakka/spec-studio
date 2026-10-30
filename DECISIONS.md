@@ -110,9 +110,33 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 
 ## 2026-10-30: The questions endpoint does not check the daily cap yet
 **Context:** SPEC §10 counts questions as one LLM run against `DAILY_LLM_RUN_LIMIT`. The `usage` table and the 429 path are part of T5.
-**Decision:** T4 calls the LLM with no cap check. T5 adds the cap to both LLM routes at once, so the logic is written once.
+**Decision:** T4 calls the LLM with no cap check. T5 adds the cap to both LLM routes at once, so the logic is written once. (Done in T5: see the next entry.)
 **Alternatives:** Build the cap now with a separate counter, which would be replaced in T5.
-**Consequence:** Until T5 lands, the endpoints are not rate limited. Do not expose them publicly before T5.
+**Consequence:** Until T5 landed, the endpoints were not rate limited.
+
+## 2026-10-30: Daily cap is reserved before the provider call, and failed runs still count
+**Context:** SPEC §10 and AC-7 say an over-limit request must cost nothing at a provider. Checking first and counting after would let parallel requests overshoot the limit.
+**Decision:** `reserveLlmRun` (`src/lib/db/repo.ts`) is one `INSERT ... ON CONFLICT DO UPDATE ... WHERE llm_runs < limit` statement, keyed by owner and UTC day. It runs before any provider is contacted. A run that then fails still counts.
+**Alternatives:** Count only successful runs (lets a failing provider drain nothing, but makes the count race-prone); a separate read then write (overshoots under parallel requests).
+**Consequence:** A user whose run fails loses one of the day's runs. The 429 message gives the reset time as 00:00 UTC, not a countdown.
+
+## 2026-10-30: Streaming progress uses the provider stream only when a caller asks for it
+**Context:** SPEC §10 wants `progress` events with a character count. Questions (T4) use plain `chat`, and the existing client tests stub only `chat`.
+**Decision:** `generateJson` takes `{ signal, onProgress }`. With `onProgress`, the call uses `chatStream` and reports the running length. Without it, it uses `chat` as before. The OpenAI-compatible provider now sends `response_format: json_object` on streamed calls too, so JSON mode is not lost when streaming.
+**Alternatives:** Always stream (would change the questions path and its tests); drop JSON mode for streams (more repair retries).
+**Consequence:** The progress count restarts when the repair call begins. Invalid JSON from a streamed first attempt triggers the same single repair as before.
+
+## 2026-10-30: Generation status, cancel, and stale runs
+**Context:** SPEC §12 needs failed specs to be retryable and a cancel button in the UI. A server that stops mid-run would otherwise leave a spec in `generating` forever.
+**Decision:** `startGeneration` allows `answered`, `done`, and `failed`. `generating` is refused for 10 minutes after its last update, then treated as abandoned. A cancelled run (client disconnect or abort) returns the spec to `answered`. Any other failure sets `failed` and stores the friendly message in `error_message`.
+**Alternatives:** Keep cancelled runs as `failed` (the user would see an error for something they chose); a lease column with a heartbeat (more schema for a single-user-per-browser app).
+**Consequence:** After a crash, a retry can wait up to 10 minutes. Invalid output after one repair and a provider outage both end as `llm_unavailable`, so the UI cannot yet tell them apart. T6 can show one retry message for both.
+
+## 2026-10-30: SSE route checks the request before opening the stream
+**Context:** Once an SSE response has started, its status code cannot change. Not-found, wrong-state, and daily-limit errors must come back as normal JSON with the right status.
+**Decision:** `startGeneration` runs before the `ReadableStream` is created, so its errors are plain `{ error }` responses. The run itself reports failures as `error` events. Client disconnect aborts the LLM call through `request.signal` and the stream's `cancel()`.
+**Alternatives:** Send every failure as an `error` event with status 200 (clients would have to parse the stream to learn a request was refused).
+**Consequence:** Clients must handle both a JSON error and an event stream from the same endpoint. Hobby-tier Vercel limits a function to 60 seconds. A question run plus a repair plus a fallback can exceed that, so T8 should check the deployed timeout.
 
 ## Problem: Neon tables missing on first request
 **What happened:** The first `POST /api/specs` returned 500. The log showed Postgres code `42P01` (undefined table). The migration had never been applied to the Neon dev database.

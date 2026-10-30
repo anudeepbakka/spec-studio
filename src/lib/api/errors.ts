@@ -25,19 +25,24 @@ function errorBody(status: number, code: string, message: string) {
   return NextResponse.json({ error: { code, message } }, { status });
 }
 
-// Maps any thrown value to a JSON error response. Unknown errors never leak details.
-export function errorResponse(error: unknown): NextResponse {
+export const LLM_UNAVAILABLE_MESSAGE = "The AI service is unavailable right now. Please try again in a moment.";
+
+export type ErrorDetails = { status: number; code: string; message: string };
+
+// Maps any thrown value to a status, code and safe message. Unknown errors never leak details.
+export function describeError(error: unknown): ErrorDetails {
   if (error instanceof ApiError) {
-    return errorBody(error.status, error.code, error.message);
+    return { status: error.status, code: error.code, message: error.message };
   }
   if (error instanceof LLMUnavailableError) {
-    return errorBody(
-      503,
-      "llm_unavailable",
-      "The AI service is unavailable right now. Please try again in a moment.",
-    );
+    return { status: 503, code: "llm_unavailable", message: LLM_UNAVAILABLE_MESSAGE };
   }
   // Logs the error name and the Postgres code only. Driver messages can include SQL and user text.
   console.error(JSON.stringify({ event: "api_error", error: errorSummary(error) }));
-  return errorBody(500, "internal_error", "Something went wrong. Please try again.");
+  return { status: 500, code: "internal_error", message: "Something went wrong. Please try again." };
+}
+
+export function errorResponse(error: unknown): NextResponse {
+  const { status, code, message } = describeError(error);
+  return errorBody(status, code, message);
 }

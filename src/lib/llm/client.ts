@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
 import { LLMUnavailableError, ProviderError, type ProviderFailure } from "./errors";
 import { buildRepairMessages, parseAndValidate } from "./json";
-import type { ChatMessage, LLMProvider } from "./types";
+import type { ChatMessage, ChatRequest, LLMProvider } from "./types";
 
 // SPEC §8: ordered fallback, 60s cooldown after 429, JSON validation with one repair.
 
@@ -22,6 +22,13 @@ export type LLMClientOptions = {
 };
 
 export type GenerateResult<T> = { value: T; provider: string; model: string };
+
+export type GenerateOptions = {
+  signal?: AbortSignal;
+  // Called with the running character count while the model streams its answer (SPEC §10).
+  // The count restarts when the repair call begins.
+  onProgress?: (chars: number) => void;
+};
 
 const RATE_LIMIT_COOLDOWN_MS = 60_000;
 
@@ -78,20 +85,37 @@ export function createLLMClient(options: LLMClientOptions) {
     return { value, provider: provider.name, model: provider.model };
   }
 
+  // Without onProgress, one plain call. With it, the answer is streamed and the running length is reported.
+  async function complete(
+    provider: LLMProvider,
+    req: ChatRequest,
+    onProgress?: (chars: number) => void,
+  ): Promise<string> {
+    if (!onProgress) return provider.chat(req);
+
+    let text = "";
+    for await (const chunk of provider.chatStream(req)) {
+      text += chunk;
+      onProgress(text.length);
+    }
+    return text;
+  }
+
   // Asks for JSON and validates it. On invalid output, makes one repair call on the
   // same provider. If that also fails, the next provider is tried.
   async function generateJson<T>(
     schema: ZodType<T, unknown>,
     messages: ChatMessage[],
-    signal?: AbortSignal,
+    options: GenerateOptions = {},
   ): Promise<GenerateResult<T>> {
+    const { signal, onProgress } = options;
     const { value, provider } = await withFallback(async (p) => {
-      const raw = await timed(p, () => p.chat({ messages, json: true, signal }));
+      const raw = await timed(p, () => complete(p, { messages, json: true, signal }, onProgress));
       const first = parseAndValidate(schema, raw);
       if (first.ok) return first.value;
 
       const repairedRaw = await timed(p, () =>
-        p.chat({ messages: buildRepairMessages(messages, raw, first.errors), json: true, signal }),
+        complete(p, { messages: buildRepairMessages(messages, raw, first.errors), json: true, signal }, onProgress),
       );
       const second = parseAndValidate(schema, repairedRaw);
       if (second.ok) return second.value;
