@@ -174,3 +174,39 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 **What happened:** After the first fix, the dev overlay still reported "Route / encountered uncached data during prerendering", now pointing at the `await connection()` line itself. With `cacheComponents`, a request-time call outside a `Suspense` boundary blocks the static shell.
 **Fix:** The shells of `/` and `/specs/[id]` are static. The per-request reads (owner cookie, database, `connection()`) move into async children wrapped in `Suspense`.
 **Consequence:** Not-found specs now return HTTP 200 with the friendly not-found page, not 404. `notFound()` runs after the streamed shell has started, so the status cannot change. The UI is correct; the status code is a known gap against SPEC §12. Fixing it means checking ownership before the boundary, which would bring the blocking read back.
+
+## 2026-10-30: Adaptive one-question interview replaces the batch of questions
+**Context:** The v1 flow generated 4 to 8 questions at once, so no question could use an earlier answer. Users also got a form, not a conversation.
+**Decision:** The interview asks one question per LLM call (SPEC §4, §9, §10). Each call gets the request and the full transcript. The model returns `done` and the coverage. The server enforces min 4 and max 8 resolved turns and the call cap. Interview state lives in a new `interview` column. Legacy rows stay readable.
+**Alternatives:** Keep the batch and re-ask after each answer (costs more calls and drops the one-question rhythm); let the model control the count with no server limits (cannot guarantee the cap or the minimum).
+**Consequence:** A full interview costs up to 8 question calls plus generation and repairs, so the per-spec cap of 12 is tight. Eval runs need the same cap. Each question now waits for the previous answer, so latency is per turn, not per interview.
+
+## 2026-10-30: Interview answer rules and counting
+**Context:** SPEC §10 needs precise counts for minimum, maximum, and finish early. "Skipped", "Not sure", and a real answer mean different things.
+**Decision:** A turn is resolved when it has any answer, including skipped and "not sure". The minimum of 4 and the maximum of 8 count resolved turns. Finish early needs 3 turns with a real answer (`answered`). "Not sure" is kept as an answer and becomes an open question in the spec; skipped becomes an assumption.
+**Alternatives:** Count only real answers toward the minimum (a user who skips a lot would never reach done); let finish early accept any resolved turns (could generate from almost nothing).
+**Consequence:** A user who skips a lot can still reach done through the 8-turn maximum, and the spec will list many assumptions. The UI must show this clearly.
+
+## 2026-10-30: Daily limit counts new specs, and each spec has a call cap
+**Context:** A per-run limit no longer fits: one spec now takes many calls. The cost risk is the number of calls per spec and the number of specs per day.
+**Decision:** `DAILY_SPEC_LIMIT` (default 5) counts new specs at their first question, not calls. A separate constant `MAX_LLM_CALLS_PER_SPEC = 12` counts every provider request for a spec, including repairs and fallbacks, and is reserved before each request. The `usage` column `llm_runs` becomes `specs_started`.
+**Alternatives:** Keep the per-call daily limit (a single interview would use up the day); count only successful calls (a failing provider could drain free quota).
+**Consequence:** A failed first question still counts as a started spec, as the old run limit did. Resuming a spec never costs more of the daily limit. The 12-call cap can be hit by a provider outage that triggers many fallbacks; the message tells the user to start a new request.
+
+## 2026-10-30: Legacy specs stay readable and are not migrated
+**Context:** Specs made with the v1 flow hold `questions` and `answers`, and their prompts are retired.
+**Decision:** Legacy rows keep their columns. They open read-only, and their spec or saved answers are shown. Interview and generate endpoints return 409 `legacy_spec`. Delete and export still work.
+**Alternatives:** Convert legacy questions into interview turns (the interview order and coverage would be invented); delete legacy rows (loses the owner's data).
+**Consequence:** The app keeps two flows in code for the portfolio period. This is one read-only branch, not a full second flow.
+
+## 2026-10-30: Dark-first theme, and two new UI dependencies
+**Context:** The v1 UI was a plain form. The product should feel like a modern AI application. SPEC §2 excluded a dark mode toggle.
+**Decision:** The app is dark-first with one theme (no switch). `framer-motion` (motion) and `lucide-react` (icons) are allowed. Inter and Geist Mono load with `next/font`. These are the only new libraries.
+**Alternatives:** A light theme with a toggle (more work, not asked for); a component kit such as shadcn (a larger dependency and a different look from the spec).
+**Consequence:** The non-goal "dark mode toggle" becomes "a theme switch". Reduced motion must turn animations off, so every animated component needs a reduced-motion path.
+
+## 2026-10-30: Question IDs are assigned by the server
+**Context:** The v1 schema let the model choose question IDs, which is untrusted output.
+**Decision:** The model returns the question without an ID. The server assigns `Q-{index}`.
+**Alternatives:** Trust the model's IDs and check them for duplicates (more checks for the same result).
+**Consequence:** Answers are keyed to server-generated IDs, so an invalid ID from the model cannot break the transcript.

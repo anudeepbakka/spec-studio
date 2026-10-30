@@ -4,10 +4,10 @@
 
 ## 1. Overview
 Spec Studio turns a rough feature request into a structured, developer-ready specification.
-The user pastes a request. The app asks clarifying questions, the user answers, and the app generates a spec with
+The user pastes a request. The app interviews the user one question at a time. Each question is chosen from the request and everything answered so far. When the interview is complete, the app generates a spec with
 user stories, acceptance criteria, edge cases, open questions, and a task breakdown. Specs are saved and can be exported as Markdown.
 
-The product idea comes from business analysis: ask the right questions before building anything.
+The product idea comes from business analysis: ask the right questions, in the right order, before building anything.
 
 ## 2. Goals and non-goals
 **Goals**
@@ -18,14 +18,16 @@ The product idea comes from business analysis: ask the right questions before bu
 **Non-goals (do NOT build)**
 - User accounts, login, teams, sharing, comments, real-time collaboration.
 - Editing the generated spec in-app (regenerate or copy only).
-- Payments, admin panel, analytics, i18n, dark mode toggle, PDF export, Jira/GitHub integrations.
+- Payments, admin panel, analytics, i18n, a theme switch (the app is dark-first with one theme), PDF export, Jira/GitHub integrations.
 - Fine-tuning, vector databases, RAG, agents.
 
 ## 3. Stack (fixed)
 | Layer | Choice |
 |---|---|
 | Framework | Next.js (App Router), TypeScript strict |
-| UI | Tailwind CSS (no component library; small hand-written components) |
+| UI | Tailwind CSS with design tokens. Small hand-written components. No component kit (no shadcn, MUI, or similar). |
+| UI extras | `framer-motion` (motion) and `lucide-react` (icons). Allowed; reason logged in DECISIONS.md. |
+| Fonts | Inter (UI) and Geist Mono (IDs and code), loaded with `next/font` |
 | Validation | Zod |
 | DB | Postgres (Neon free tier) with Drizzle ORM |
 | LLM | OpenAI-compatible REST via `fetch` (no vendor SDK), providers: Groq, OpenRouter, Gemini |
@@ -34,10 +36,12 @@ The product idea comes from business analysis: ask the right questions before bu
 | CI/Deploy | GitHub Actions, Vercel |
 
 ## 4. User flow
-1. **Request:** user enters a feature request (20 to 4000 chars) and submits.
-2. **Questions:** app shows 4 to 8 clarifying questions (text or multiple choice). User answers (any may be skipped, with a note "skipped").
-3. **Generate:** app streams progress, then shows the finished spec.
+1. **Request:** user enters a feature request (20 to 4000 chars) and submits. The spec is created as a draft.
+2. **Interview:** adaptive, one question at a time. Each turn the app shows one question and waits. The user answers, skips, says "Not sure", or finishes early. The next question is generated from the full request and all earlier turns (§9). The interview ends when the LLM says it is done, when 8 questions have been resolved, or when the user finishes early.
+3. **Generate:** app streams progress, then shows the finished spec. The spec prompt uses the full interview transcript.
 4. **Result:** view sections, copy Markdown, download `.md`, regenerate, delete. Saved to history.
+
+Resuming: any reload or return visit goes to the current unanswered question, or to the next step if no question is pending. Nothing is lost on reload.
 
 ## 5. Data model (Postgres)
 `specs`
@@ -47,26 +51,60 @@ The product idea comes from business analysis: ask the right questions before bu
 | owner_id | uuid | from cookie, indexed |
 | title | text | from spec or first 60 chars of request |
 | raw_request | text | |
-| questions | jsonb | `Question[]` or null |
-| answers | jsonb | `Answer[]` or null |
+| interview | jsonb | `Turn[]` (§6), ordered. Null for legacy specs. |
+| questions | jsonb | legacy only: `Question[]` from the old flow. Null for new specs. |
+| answers | jsonb | legacy only: `Answer[]` from the old flow. Null for new specs. |
 | spec | jsonb | `Spec` or null |
-| status | text | `draft` \| `questions_ready` \| `answered` \| `generating` \| `done` \| `failed` |
+| status | text | `draft` \| `interviewing` \| `interview_done` \| `generating` \| `done` \| `failed`. Legacy rows may also hold `questions_ready` or `answered`. |
+| llm_calls | int | AI requests made for this spec, default 0 (§10 cap) |
 | error_message | text | nullable |
 | provider | text | provider that produced the spec |
 | model | text | |
 | prompt_version | text | |
 | created_at, updated_at | timestamptz | |
 
-`usage`: `(owner_id uuid, day date, llm_runs int, primary key (owner_id, day))`.
+Status meanings:
+- `draft`: request saved, no question asked yet.
+- `interviewing`: at least one turn exists. The interview is not over.
+- `interview_done`: the interview has ended (LLM done, 8 resolved, or finished early). Ready to generate.
+- `generating`, `done`, `failed`: generation states, as before (§12).
+
+`usage`: `(owner_id uuid, day date, specs_started int, primary key (owner_id, day))`. Replaces `llm_runs` (§10).
 
 Owner identity: anonymous httpOnly cookie `ss_owner` (UUID) set by middleware. All queries are scoped by `owner_id`.
 
 ## 6. Schemas (Zod; source of truth for types)
 ```ts
-Question = { id: string, question: string, why: string,
-             type: "text" | "choice", options?: string[] }          // options required when type = "choice"
-QuestionsResponse = { questions: Question[] }                        // 4..8
-Answer = { questionId: string, answer: string }                      // answer may be "" (skipped)
+Coverage = { usersRoles: "unknown" | "partial" | "covered",
+             scope: "unknown" | "partial" | "covered",
+             businessRules: "unknown" | "partial" | "covered",
+             failureCases: "unknown" | "partial" | "covered",
+             nonFunctional: "unknown" | "partial" | "covered",
+             dependencies: "unknown" | "partial" | "covered" }
+
+QuestionDraft = { question: string, why: string,
+                  type: "text" | "choice", options?: string[] }      // options required (2..4) when type = "choice"
+Question = QuestionDraft & { id: string /* Q-1, assigned by the server */ }
+
+// What the LLM returns for each interview step (PROMPT_VERSION v2, §9)
+InterviewTurnResponse = { done: boolean, reason?: string,
+                          question?: QuestionDraft,                  // required when done = false, forbidden when done = true
+                          coverage: Coverage,
+                          knownFacts: string[] }                     // max 8 short bullets
+
+Answer = { questionId: string, answer: string,
+           status: "answered" | "not_sure" | "skipped" }             // answer is "" when skipped
+
+Turn = { index: number,                                              // 1-based, unique
+         question: Question,
+         coverage: Coverage, knownFacts: string[],                   // as returned with this question
+         answer: { text: string, status: "answered" | "not_sure" | "skipped" } | null,   // null while pending
+         answeredAt: string | null }                                 // ISO time
+// Rules: at most one turn is pending (answer = null), and it is always the last one.
+// Resolved turns are the ones with an answer (any status).
+
+// Legacy only (old questions flow, read-only)
+QuestionsResponse = { questions: QuestionDraft[] }                   // 4..8
 
 AcceptanceCriterion = { id: string /* AC-1.1 */, given: string, when: string, then: string }
 UserStory = { id: string /* US-1 */, role: string, want: string, benefit: string,
@@ -84,6 +122,7 @@ Spec = { title: string, summary: string, goals: string[],            // goals 2.
 **Integrity checks (`superRefine`)**: all IDs unique within their type; every `relatedStoryIds` and `dependsOn` reference exists;
 no task depends on itself; no dependency cycles; every user story is referenced by at least one task.
 Failures produce readable messages (used in the repair prompt).
+**Interview checks (`superRefine`)**: turn indexes run 1..n with no gaps; question IDs are unique; only the last turn may be pending; `interview` length is at most 8.
 
 ## 7. Markdown export format
 ```
@@ -108,6 +147,7 @@ Failures produce readable messages (used in the repair prompt).
 | ID | Task | Size | Depends on | Stories |
 ```
 Footer line: `Generated with Spec Studio`. Output must be deterministic (snapshot-tested).
+The export does not include the interview transcript. Assumptions from skipped or unsure answers appear in the summary or in Open questions.
 
 ## 8. LLM layer (`src/lib/llm`)
 - `LLMProvider`: `{ name, chat(req): Promise<string>, chatStream(req): AsyncIterable<string> }`, where `req = { messages, json?: boolean, signal? }`.
@@ -116,65 +156,124 @@ Footer line: `Generated with Spec Studio`. Output must be deterministic (snapsho
 - **Fallback:** on 429, 5xx, timeout (default 40s), or network error, try the next provider. A provider that returned 429 is skipped for 60 seconds (in-memory, best effort).
 - **JSON handling:** request JSON mode when supported; always strip code fences; `JSON.parse`; Zod validate.
 - **Repair:** if parse or validation fails, make ONE repair call on the same provider with the original task, the bad output, and the validation errors. If that fails, move to the next provider.
+- **Call counting:** every request sent to a provider counts toward the spec's `llm_calls` (§10). This includes repairs and fallback attempts. The count is reserved before each request, as in §10.
 - If all providers fail, throw `LLMUnavailableError` with a per-provider summary (no secrets). The API maps it to HTTP 503 with a friendly message.
 - Log only metadata (provider, model, latency, attempt, outcome). Never log prompts or answers.
 
-## 9. Prompts (`src/lib/prompts`, exported constant `PROMPT_VERSION = "v1"`)
+## 9. Prompts (`src/lib/prompts`, exported constant `PROMPT_VERSION = "v2"`)
 Persona: a senior business analyst writing for developers. Plain language, concrete, testable.
 
-**Questions prompt rules**
-- Output JSON only, matching `QuestionsResponse`.
-- 4 to 8 questions, ordered by impact. Cover: users and roles, scope boundaries, business rules, failure and edge conditions, non-functional needs, dependencies.
-- Do not ask what the request already answers. Each question has a one-line `why`.
-- Prefer `choice` type with 2 to 4 options when the answer space is small.
+**Interview question prompt (one call per turn)**
+- Input: the raw request, the full transcript of resolved turns (question, answer status, answer text), the knownFacts and coverage from the last turn, and the rules below.
+- Output JSON only, matching `InterviewTurnResponse`.
+- Ask exactly ONE question per turn, short and concrete.
+- Use previous answers. Follow up on vague or surprising answers, probe contradictions, and never repeat or ask what was already answered or is already in the request.
+- Prioritise the least-covered dimension (users and roles, scope, business rules, failure cases, non-functional, dependencies). A strong follow-up beats ticking a box.
+- The model may say `done: true` only after at least 4 resolved turns. The server enforces this and the 8-turn maximum (§10). Done before 4 is a validation failure and goes through the repair path.
+- Prefer `choice` with 2 to 4 options when the answer space is small. The UI always also allows free text.
+- Treat "skipped" and "not sure" as signals. Ask a simpler or differently framed question about the same topic only when it matters for the spec.
+- `knownFacts`: short bullets of what is understood so far, max 8.
 
 **Spec prompt rules**
+- Input: the raw request and the full interview transcript, including skipped and "not sure" turns.
 - Output JSON only, matching `Spec`. IDs exactly as in §6. Use only information from the request and answers.
-- Do not invent facts. Put unknowns in `openQuestions`. Skipped answers become explicit assumptions in `summary` or `openQuestions`.
+- Do not invent facts. Put unknowns in `openQuestions`. Every skipped answer becomes an explicit assumption in `summary` or `openQuestions`. Every "not sure" answer becomes an open question.
 - Acceptance criteria must be observable and testable (Given/When/Then). No vague words ("fast", "user-friendly") without a measurable meaning.
 - Tasks ordered so dependencies come first; each task links to the stories it serves.
 
 **Repair prompt:** includes the validation errors verbatim and says: return corrected JSON only.
 
 Prompts must be plain exported strings or template functions, easy to read and diff, no hidden magic.
+The `QuestionsResponse` prompt from v1 is retired. Legacy specs are not regenerated.
 
 ## 10. API (route handlers; JSON errors `{ error: { code, message } }`)
 | Method + path | Purpose |
 |---|---|
 | `POST /api/specs` | body `{ rawRequest }`, creates draft, returns `{ id }` |
-| `POST /api/specs/:id/questions` | generates questions (non-streaming), status `questions_ready` |
-| `PUT /api/specs/:id/answers` | body `{ answers: Answer[] }`, status `answered` |
-| `POST /api/specs/:id/generate` | SSE: `event: progress` (`{ chars }`), then `event: spec` (`Spec`) or `event: error` |
+| `POST /api/specs/:id/interview/next` | body `{ answer?: { questionId, answer, skipped?, notSure? } }`. Saves the answer if given, then returns the pending question, or generates the next one, or returns `{ done: true }`. Idempotent and resumable (see below). |
+| `POST /api/specs/:id/interview/undo` | removes the last resolved turn and any pending turn after it, then asks for that question again (no `done` allowed in this call). Reopens the interview if it was `interview_done`. |
+| `POST /api/specs/:id/interview/finish` | body none. Ends the interview early. Needs at least 3 turns answered with a real answer (`answered`, not skipped or "not sure"). Drops any pending question. Status `interview_done`. |
+| `POST /api/specs/:id/generate` | SSE: `event: progress` (`{ chars }`), then `event: spec` (`Spec`) or `event: error`. Uses the full transcript. |
 | `GET /api/specs` | list owner's specs (id, title, status, created_at) |
-| `GET /api/specs/:id` | full record |
+| `GET /api/specs/:id` | full record, including `interview` (or legacy `questions` and `answers`) |
 | `DELETE /api/specs/:id` | delete |
 | `GET /api/specs/:id/export` | `text/markdown`, `Content-Disposition: attachment` |
 | `GET /api/health` | `{ ok: true }` |
 
-**Rate limit:** `DAILY_LLM_RUN_LIMIT` (default 10) LLM runs per owner per UTC day; questions and generate each count as one. Over the limit returns 429 with `code: "daily_limit"`.
-Input limits: `rawRequest` 20 to 4000 chars; each answer at most 1000 chars. Reject others with 400.
+The v1 routes `POST /api/specs/:id/questions` and `PUT /api/specs/:id/answers` are removed.
 
-## 11. UI (Tailwind; clean, minimal, responsive)
-- `/` Home: heading, textarea, submit; "Recent specs" list (title, status, date, delete).
-- `/specs/[id]`: stepper (Request, Questions, Generate, Result).
-  - Questions: form with a field per question (text input or radio group), "Skip" allowed, submit.
-  - Generate: progress indicator with live character count from SSE, cancel button.
-  - Result: collapsible sections (Summary, User stories with criteria, Edge cases, Open questions, Tasks table), buttons: Copy Markdown, Download .md, Regenerate, Delete.
-- Accessible: labels on inputs, visible focus, keyboard usable, sufficient contrast.
+**Interview `next` behaviour**
+- Pending question exists and no answer sent: return it. No LLM call. (Resume.)
+- Pending question exists and an answer is sent: save the answer. Then, if 8 turns are resolved, set `interview_done` and return `{ done: true }` with no LLM call. Otherwise ask the LLM for the next question.
+- No pending question and status `draft` or `interviewing`: ask the LLM for the next question. This is the first LLM call of a new spec.
+- Status `interview_done`: return `{ done: true }`. An answer sent here is refused with 409.
+- Answer sent with no pending question: refused with 409 `invalid_state`.
+
+**Limits**
+- `DAILY_SPEC_LIMIT` (default 5): new specs per owner per UTC day. Counted when a spec's first question is requested (the draft to `interviewing` transition). Later calls on the same spec are not counted again. Over the limit returns 429 with `code: "daily_limit"`, before any provider is called. A first question that then fails still counts (as with the old run limit).
+- `MAX_LLM_CALLS_PER_SPEC` = 12 (a code constant, not an env var). Every request to a provider counts (§8). Each request reserves one call on `specs.llm_calls` with a conditional update before it is sent, like the daily reservation. Over the cap returns 429 with `code: "spec_call_limit"`, and no provider is called. The spec stays in its current status.
+- Interview size: the server forces `interview_done` once 8 turns are resolved. Done before 4 resolved turns is refused as a validation failure.
+- Input limits: `rawRequest` 20 to 4000 chars; each answer at most 1000 chars. Reject others with 400.
+- Undo is allowed while status is `interviewing` or `interview_done`. It is refused with 409 once generation has started.
+
+**Legacy specs** (`interview` null, `questions` or `answers` set): `GET` returns them. Interview and generate endpoints return 409 `legacy_spec`. Delete and export still work.
+
+## 11. UI and visual design
+The app must look and feel like a modern AI product, not a plain form. Dark-first, one theme.
+
+**Design language**
+- Design tokens as CSS variables: near-black background, subtle gradient glow (violet to cyan accent) behind the hero and active elements, soft grain or grid texture, glass-style cards (translucent surface, 1px subtle border, backdrop blur), `rounded-2xl` corners, tasteful shadows.
+- Typography: Inter for UI, Geist Mono for IDs and code. Clear hierarchy, generous spacing, max-width containers.
+- Motion (`framer-motion`, subtle, respects `prefers-reduced-motion`): fade and slide-in for steps, typing indicator, typewriter reveal of each new question, animated progress, smooth layout transitions. No heavy or distracting effects. With reduced motion, everything appears at once.
+- Icons from `lucide-react`. Primitives (button, card, badge, input, chip, progress, toast, skeleton) live in `src/components/ui/`.
+
+**Screens**
+1. **Home (`/`):** centred hero with headline and a one-line value prop. A large AI-style prompt box: auto-growing textarea, Enter to submit, Shift+Enter for newline, character counter. 3 to 4 example-request chips that fill the box. A "How it works" row of 4 small steps. "Recent specs" as a responsive card grid (title, status badge, relative date, delete), up to 6 cards, with "See all" to `/history`.
+2. **Interview (`/specs/[id]`, chat-style two-column layout; single column on mobile):**
+   - Left: conversation thread. Earlier questions and answers as compact bubbles. The current question appears after a typing indicator, with a typewriter reveal. A "why I'm asking" line in muted text.
+   - Answer area: choice options as selectable chips or cards, plus a free-text input. Buttons: Send, Skip, Not sure.
+   - Controls: Undo last answer; Finish early and generate (enabled after 3 answers).
+   - Right (sticky): "What I understand so far" panel showing knownFacts. A coverage meter with six dimensions (users and roles, scope, business rules, failure cases, non-functional, dependencies), each unknown, partial, or covered, with animated state changes. A step indicator and "Question 3 of up to 8".
+   - Reload resumes at the pending question with earlier turns shown.
+3. **Generating (`/specs/[id]`):** full-width animated stage list (Reading your answers, Drafting user stories, Writing acceptance criteria, Mapping edge cases, Building task plan) advancing with the streamed character count. A live counter and a Cancel button. A skeleton preview of the result layout.
+4. **Result (`/specs/[id]`):** sticky left section navigation (Summary, Stories, Edge cases, Open questions, Tasks). Header with title, stat chips (N stories, N criteria, N edge cases, N tasks), and actions: Copy Markdown, Download .md, Regenerate, Delete. User story cards with priority badges (must, should, could in distinct colours). Given, When, Then shown as labelled rows. Edge cases as cards linked to their stories: hover or click on a card highlights its story. Tasks as a table or list with size badges (S, M, L) and dependency chips. Copy shows a toast.
+   - Legacy specs show the same result read-only, without Regenerate.
+5. **History (`/history`):** searchable list of all the owner's specs with status badges, dates, and delete.
+
+**Quality requirements**
+- Fully responsive. Checked at 375px first, then desktop.
+- Keyboard accessible: the full interview can be completed without a mouse. Visible focus rings on every control.
+- WCAG AA contrast on the dark theme.
+- `aria-live` for each new question, the progress text, and errors.
+- Friendly empty, loading, and error states for every case in §12.
+- No layout shift when content loads.
+- No new libraries beyond `framer-motion` and `lucide-react`. Components small and reusable.
 
 ## 12. Error handling (every state must have friendly UI)
-Validation error (400), daily limit (429, with reset time), all providers down (503, retry button), generation failed validation after repair (spec saved as `failed`, retry button),
-network drop during SSE (resume by re-fetching record; offer retry), not found (404 page).
+- **Validation error (400):** shown next to the field, in plain words.
+- **Daily spec limit (429 `daily_limit`):** clear message with the reset time (00:00 UTC). Nothing is charged to a provider.
+- **Spec call cap (429 `spec_call_limit`):** "This spec has used its AI calls. Start a new request." Offers a new request. Nothing is charged to a provider.
+- **Question generation failed (503):** the interview keeps its state. Shows a retry button that asks for the same pending question again. No answers are lost.
+- **All providers down (503):** friendly message with a retry button.
+- **Generation failed validation after repair:** spec saved as `failed`, retry button.
+- **Network drop during SSE:** the record is re-fetched and the UI offers retry.
+- **Interview conflict (409):** the page reloads to the current state and says what changed.
+- **Legacy spec:** read-only notice explaining the spec was made with the old question flow.
+- **Not found (404):** friendly not-found page.
 
 ## 13. Testing and evals
-**Unit tests (Vitest):** schemas and integrity checks, Markdown export snapshot, provider fallback and repair with mocked `fetch`, rate-limit logic, JSON fence stripping.
-**Evals (`npm run eval`):** `evals/cases.json` has 8 generic cases (e.g. password reset, CSV export, comment notifications, appointment booking, search filters, invite teammates, offline mode, bulk delete). Each case has `request` and `clarifications: [{question, answer}]` (pre-written, so evals need no extra LLM calls beyond the pipeline).
-For each case run: generate questions, then generate the spec using the case clarifications.
+**Unit tests (Vitest):** schemas and integrity checks (including turn schema and interview checks), Markdown export snapshot, provider fallback and repair with mocked `fetch`, daily spec limit, per-spec call cap, JSON fence stripping.
+**Interview tests:** state machine covering minimum 4 before done, maximum 8 forced done, finish early (needs 3 real answers), undo (removes last resolved turn and re-asks that question), resume (pending question returned with no LLM call), and 409 for conflicting states.
+**Prompt tests:** the question prompt and the spec prompt include the full transcript, including skipped and "not sure" turns.
+
+**Evals (`npm run eval`):** `evals/cases.json` has 8 generic cases (e.g. password reset, CSV export, comment notifications, appointment booking, search filters, invite teammates, offline mode, bulk delete). Each case has `request` and `clarifications: string[]` (pre-written answers, in order).
+For each case run an interview: ask the first question, then answer each question with the next pre-written clarification, without reading the question text. The run stops when the LLM says done, when the list runs out (then finish early, if at least 3 answers), or at the 8-turn maximum. Then generate the spec from the transcript.
 Metrics written to `evals/results/latest.json` and printed as a table:
-- questions: schema-valid rate, count in 4..8 rate
+- interview: question schema-valid rate (first attempt), turns in the 4..8 range rate, LLM-done reached rate, adaptive follow-up rate (share of turns after the first whose question shares a content word of 5+ letters, not a stop word, with an earlier answer; the check is deterministic and documented in code), average turns per case
 - spec: schema-valid on first attempt rate, valid after repair rate, final success rate
+- assumptions: share of skipped and "not sure" turns whose topic appears in `summary` or `openQuestions` (keyword check, documented in code)
 - structure: average stories, criteria per story, edge cases, tasks; share of stories covered by tasks (target 100%)
-- ops: average latency, fallback count, provider used
+- ops: average latency, fallback count, provider used, LLM calls per case (must stay at or under 12)
 Evals must be rerunnable and must record `PROMPT_VERSION`, provider, model, date.
 
 ## 14. Environment variables (`.env.example`)
@@ -187,31 +286,40 @@ OPENROUTER_API_KEY=
 OPENROUTER_MODEL=
 GEMINI_API_KEY=
 GEMINI_MODEL=
-DAILY_LLM_RUN_LIMIT=10
+DAILY_SPEC_LIMIT=5
 LLM_TIMEOUT_MS=40000
 ```
 Base URLs: Groq `https://api.groq.com/openai/v1`, OpenRouter `https://openrouter.ai/api/v1`, Gemini `https://generativelanguage.googleapis.com/v1beta/openai/`.
 Free model names change often. Do NOT hardcode them. Leave model vars for the user to fill from each provider's current docs, and fail with a clear startup message if a provider is listed but its key or model is missing.
 
 ## 15. MVP acceptance criteria
-- **AC-1** Given a valid request, when I submit it, then I land on `/specs/{id}` with 4 to 8 clarifying questions shown within 20 seconds.
-- **AC-2** Given I answered some questions and skipped others, when I generate, then I see live progress and then a spec that passes schema validation.
+- **AC-1** Given a valid request, when I submit it, then I land on `/specs/{id}` and the first question appears within 20 seconds.
+- **AC-2** Given I answered some questions and skipped or was unsure about others, when the interview ends and I generate, then I see live progress and then a spec that passes schema validation, with skipped and unsure answers listed as assumptions or open questions.
 - **AC-3** Given the first provider returns 429, when I generate, then the app falls back to the next provider and still completes.
 - **AC-4** Given a model returns invalid JSON, when validation fails, then one repair attempt is made before falling back.
 - **AC-5** Given a finished spec, when I click Download, then I receive a `.md` file matching the §7 format.
 - **AC-6** Given I created specs in this browser, when I reopen the site, then I see only my specs in history, and I can delete them.
-- **AC-7** Given I exceed the daily limit, when I generate again, then I see a clear message with the reset time and nothing is charged to a provider.
+- **AC-7** Given I have already started `DAILY_SPEC_LIMIT` new specs today, when I start another, then I see a clear message with the reset time, and nothing is charged to a provider. Continuing a spec I already started does not count again.
 - **AC-8** Given all providers fail, when I generate, then I see a friendly error with a retry option and no stack trace.
+- **AC-9** Adaptive follow-up: given I give a vague or surprising answer, when the next question appears, then it refers to that earlier answer and does not repeat a question I already answered.
+- **AC-10** Undo: given I answered the last question, when I click Undo, then that answer is removed and the same question is shown again.
+- **AC-11** Resume: given I answered two questions and reload the page, then I return to the current unanswered question, with my earlier answers still shown.
+- **AC-12** Finish early: given I have answered at least 3 questions, when I click Finish early and generate, then the interview ends and the spec is generated from the answers so far.
+- **AC-13** Call cap: given a spec has used its 12 AI calls, when I try another AI step on it, then I see a message to start a new request, and no provider is called.
+- **AC-14** Legacy: given a spec made with the old question flow, when I open it, then I see its saved content read-only, and I can still delete it.
+- **AC-15** Design: at 375px and on desktop, all five screens work. The full interview can be completed with the keyboard. With reduced motion on, no animations play.
 
 ## 16. Project structure
 ```
-src/app/            pages and api route handlers
-src/lib/llm/        provider interface, registry, fallback, json repair
-src/lib/prompts/    versioned prompts
-src/lib/schemas/    zod schemas, integrity checks
+src/app/            pages and api route handlers (/, /specs/[id], /history)
+src/components/     page-level components
+src/components/ui/  design primitives (button, card, badge, input, chip, progress, toast, skeleton)
+src/lib/llm/        provider interface, registry, fallback, json repair, call counting
+src/lib/prompts/    versioned prompts (v2)
+src/lib/interview/  interview state machine (next, undo, finish, resume, limits)
+src/lib/schemas/    zod schemas (turns, spec), integrity checks
 src/lib/export/     toMarkdown
 src/lib/db/         drizzle schema, repo functions
-src/components/     small UI components
 evals/              cases.json, run script, results/
 scripts/            screenshots
 docs/               final documentation (generated at sign-off)
