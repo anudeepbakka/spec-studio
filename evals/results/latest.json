@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-30T08:43:32.271Z",
+  "promptVersion": "v2",
+  "providers": [
+    {
+      "name": "groq",
+      "model": "openai/gpt-oss-120b"
+    },
+    {
+      "name": "openrouter",
+      "model": "openrouter/free"
+    },
+    {
+      "name": "gemini",
+      "model": "gemini-3.5-flash"
+    }
+  ],
+  "summary": {
+    "interview": {
+      "questionSchemaValidFirstAttempt": 0.8571428571428571,
+      "turnsInRange": 1,
+      "llmDoneReached": 0,
+      "adaptiveFollowUp": 0.5,
+      "averageTurns": 6
+    },
+    "spec": {
+      "schemaValidFirstAttempt": 0.5,
+      "validAfterRepair": 0.5,
+      "finalSuccess": 0.5
+    },
+    "assumptions": {
+      "coveredShare": 1,
+      "checkedTurns": 1
+    },
+    "structure": {
+      "averageStories": 5,
+      "averageCriteriaPerStory": 2,
+      "averageEdgeCases": 4,
+      "averageTasks": 6,
+      "storyTaskCoverage": 1
+    },
+    "ops": {
+      "averageLatencyMs": 72770.5,
+      "failedAttempts": 3,
+      "averageLlmCalls": 10,
+      "maxLlmCalls": 12,
+      "allWithinCallCap": true
+    }
+  },
+  "cases": [
+    {
+      "id": "password-reset",
+      "error": null,
+      "endedBy": "finish_early",
+      "resolvedTurns": 6,
+      "interviewSteps": 7,
+      "interviewFirstAttemptValid": 7,
+      "followUps": {
+        "checked": 5,
+        "followUps": 3,
+        "rate": 0.6
+      },
+      "assumptions": {
+        "total": 1,
+        "covered": 1,
+        "rate": 1
+      },
+      "generated": true,
+      "specFirstAttemptValid": true,
+      "status": "done",
+      "errorMessage": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "llmCalls": 8,
+      "withinCap": true,
+      "stories": 5,
+      "criteriaPerStory": 2,
+      "edgeCases": 4,
+      "tasks": 6,
+      "storyTaskCoverage": 1,
+      "latencyMs": 17691,
+      "failedAttempts": 0
+    },
+    {
+      "id": "csv-export",
+      "error": null,
+      "endedBy": "finish_early",
+      "resolvedTurns": 6,
+      "interviewSteps": 7,
+      "interviewFirstAttemptValid": 5,
+      "followUps": {
+        "checked": 5,
+        "followUps": 2,
+        "rate": 0.4
+      },
+      "assumptions": {
+        "total": 0,
+        "covered": 0,
+        "rate": null
+      },
+      "generated": true,
+      "specFirstAttemptValid": false,
+      "status": "failed",
+      "errorMessage": "This spec has used its AI calls. Start a new request.",
+      "provider": null,
+      "model": null,
+      "llmCalls": 12,
+      "withinCap": true,
+      "stories": 0,
+      "criteriaPerStory": null,
+      "edgeCases": 0,
+      "tasks": 0,
+      "storyTaskCoverage": null,
+      "latencyMs": 127850,
+      "failedAttempts": 3
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "password-reset",
+    "request": "Let users reset a forgotten password by receiving an email link that expires.",
+    "clarifications": [
+      "Any user with a verified email address, including admins.",
+      "The link expires after 30 minutes and works only once.",
+      "[not sure]",
+      "After a reset, all other sessions for that user are signed out.",
+      "Accounts locked after 5 failed attempts unlock after 15 minutes.",
+      "Show the same message whether or not the email exists."
+    ]
+  },
+  {
+    "id": "csv-export",
+    "request": "Let a manager export a team's task list to a CSV file for reporting.",
+    "clarifications": [
+      "Only managers of that team, not team members.",
+      "Include the title, owner, status, due date, and time spent.",
+      "[skip]",
+      "Exports above 10,000 rows should run in the background and send an email when ready.",
+      "Dates should use the viewer's time zone.",
+      "Archived tasks are excluded unless the manager ticks a box."
+    ]
+  },
+  {
+    "id": "comment-notifications",
+    "request": "Notify people when someone comments on a document they own or have commented on.",
+    "clarifications": [
+      "Document owners and anyone who has already commented.",
+      "Mentions with @name notify that person even if they are not in those groups.",
+      "Notifications are sent in-app and by email, and users can turn email off.",
+      "[not sure]",
+      "Bundle several comments on the same document into one email per hour.",
+      "A user never gets a notification for their own comment."
+    ]
+  },
+  {
+    "id": "appointment-booking",
+    "request": "Let a customer book a 30-minute appointment with a staff member from the available times.",
+    "clarifications": [
+      "Customers who are signed in only.",
+      "Show times for the next 14 days.",
+      "A slot can be cancelled up to 24 hours before the start, with no fee.",
+      "The staff member's calendar and buffer time between appointments both block slots.",
+      "[skip]",
+      "Send a confirmation email with an ICS file attached."
+    ]
+  },
+  {
+    "id": "search-filters",
+    "request": "Add filters to the product search page so shoppers can narrow results by price and rating.",
+    "clarifications": [
+      "Price range with a minimum and maximum, plus rating from 1 to 5 stars.",
+      "Filters combine with AND, and the search text still applies.",
+      "Filter counts update as the shopper changes a filter.",
+      "[not sure]",
+      "On a phone, filters open in a bottom sheet.",
+      "The chosen filters are kept in the URL so a shared link shows the same results."
+    ]
+  },
+  {
+    "id": "invite-teammates",
+    "request": "Let a workspace admin invite teammates by email and set their role when they join.",
+    "clarifications": [
+      "Roles are admin, editor, and viewer.",
+      "An invite link expires after 7 days.",
+      "An admin can invite up to 50 people at once by pasting a list of emails.",
+      "[skip]",
+      "Invites to an email already in the workspace are rejected with a clear message.",
+      "Admins can revoke a pending invite."
+    ]
+  },
+  {
+    "id": "offline-mode",
+    "request": "Let field inspectors record checklist answers when the phone has no network, then sync later.",
+    "clarifications": [
+      "Only the checklist answers and photos need to work offline.",
+      "Data is kept on the device until a sync succeeds.",
+      "If the same checklist was changed on the server, the newer edit wins and the other is kept as a copy.",
+      "[not sure]",
+      "The app shows how many items are waiting to sync.",
+      "Photos are compressed to under 1 MB before they are stored on the device."
+    ]
+  },
+  {
+    "id": "bulk-delete",
+    "request": "Let users select several files in the file list and delete them together, with an undo option.",
+    "clarifications": [
+      "Select with checkboxes, and a select-all option for the current page.",
+      "Deleted files go to a trash folder for 30 days.",
+      "[skip]",
+      "Undo is available for 10 seconds after the delete.",
+      "Files shared with other people are removed for those people too.",
+      "Deleting more than 500 files at once asks for a confirmation."
+    ]
+  }
+]

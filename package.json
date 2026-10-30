@@ -11,7 +11,7 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "eval": "echo eval is not built yet (T7) && exit 1",
+    "eval": "tsx --env-file=.env.local evals/run.ts",
     "screenshots": "echo screenshots are not built yet (T8) && exit 1"
   },
   "dependencies": {
@@ -34,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.5"
   }

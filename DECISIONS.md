@@ -262,3 +262,31 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 ## Problem: Test timing under load (recurred)
 **What happened:** During the browser checks, six database tests failed with "Hook timed out in 10000ms" in beforeEach (PGlite migrations). They passed on a rerun with the dev server idle.
 **Fix:** vitest.config.mts sets hookTimeout to 60 s and testTimeout to 30 s. The database tests run migrations in a fresh database each time, so the time is real work, not a hang.
+
+## 2026-10-30: Eval runs with tsx and a fresh in-memory database
+**Context:** `npm run eval` must run outside Next.js and call the real providers (SPEC §13). The interview and generation services already take a database and an LLM client as parameters.
+**Decision:** tsx (dev dependency) runs `evals/run.ts` with `--env-file=.env.local`. Each run migrates a fresh PGlite database, so evals never touch the Neon database and never use up the daily limit (the eval sets its own high limit).
+**Alternatives:** Run through Vitest (awkward for a long, printed report); call the HTTP routes against a running dev server (needs a server and a real database); use `node --experimental-strip-types` (cannot resolve the extensionless imports in src).
+**Consequence:** The eval exercises the same service functions as the routes, but not the route handlers or SSE framing.
+
+## 2026-10-30: Eval metrics are measured from the request count, and some are keyword checks
+**Context:** The LLM client does not report whether a response needed a repair. SPEC §13 asks for "valid on first attempt" and assumption coverage.
+**Decision:** A step is valid on the first attempt when it made exactly one provider request (every request, including repairs and fallbacks, increments `llm_calls`, so one request means it validated first time). Adaptive follow-up and assumption coverage use the deterministic word check in `src/lib/evals/metrics.ts`: content words of 5+ letters, minus a short stop-word list.
+**Alternatives:** Add repair flags to the client result (changes the production type for eval only); use an LLM judge (adds calls and cost, and is not deterministic).
+**Consequence:** The keyword metrics are a rough signal. A follow-up can count because of a shared common word. The metrics are documented as proxies in the results.
+
+## 2026-10-30: Eval answer markers for skipped and not-sure answers
+**Context:** Clarifications are plain strings (SPEC §13), but the assumption metric needs skipped and "not sure" answers.
+**Decision:** The clarification `[skip]` sends a skipped answer and `[not sure]` sends a "not sure" answer. Any other string is a normal answer.
+**Alternatives:** An object per clarification (breaks the `string[]` shape in the spec).
+**Consequence:** A real answer that is literally "[skip]" cannot be sent in an eval case. No case needs one.
+
+## Problem: Eval run hit the per-spec call cap, and free providers fail often
+**What happened:** In the two-case eval on Gemini 3.5 Flash, password-reset passed in 8 calls. csv-export made 12 calls during generation and was stopped by the cap of 12 with "This spec has used its AI calls." Most of the extra calls were repair and fallback requests. Across runs, Groq rate-limited, OpenRouter's free model timed out, and `gemini-2.5-flash` returned 404 for this key, although the key could list it. The model list endpoint does not prove a model accepts chat requests, so the model was picked by a one-request test.
+**Fix:** Not changed. The cap is a SPEC §10 rule, and the eval shows it is tight for free models. The eval records the failure and does not raise the cap. Options for later: allow one more repair per spec, or count repairs separately. Only two of the eight cases have run so far; the results are in evals/results/latest.json.
+
+## 2026-10-30: Eval runs cost real provider requests
+**Context:** `npm run eval` calls the configured providers, so it uses the user's quota. A full run is about 50 to 100 requests.
+**Decision:** The eval runs only when the user asks. `--limit N` runs the first N cases, and `--cases` and `--out` pick a set of cases and a results file. This keeps runs small during development.
+**Alternatives:** Run all eight cases every time (uses too much quota on free tiers).
+**Consequence:** Results from different runs are kept in separate files under evals/results.

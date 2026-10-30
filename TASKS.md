@@ -51,7 +51,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   - Log the new dependencies and the dark-first decision in DECISIONS.md.
   - *Done when:* all five screens match SPEC §11; they work at 375px and on desktop; the full interview can be completed with the keyboard; contrast passes WCAG AA on the dark theme; reduced motion is respected; the empty, loading, and error states from SPEC §12 are visible; and I confirm the look.
 
-- [ ] **T7 Evals.**
+- [x] **T7 Evals.**
   `evals/cases.json` (8 generic cases per SPEC §13, each with `clarifications: string[]`). `npm run eval` runs an interview per case: the first question, then each pre-written clarification as the answer in order, stopping on LLM done, when the list runs out (finish early if at least 3 answers), or at 8 turns. Then generate. Results to `evals/results/latest.json` with the metrics in SPEC §13, including the interview and adaptive follow-up metrics and LLM calls per case (must stay at or under 12).
   *Done when:* eval runs end to end against real providers and prints a summary table; Vitest covers the metric functions (follow-up check, assumption check, turn range).
 
