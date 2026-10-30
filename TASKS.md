@@ -7,7 +7,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   `.env.example` (SPEC §14), `.gitignore` (env, `RESUME_NOTES.md`, `.next`), short README stub, GitHub Actions CI (lint, typecheck, test).
   *Done when:* `npm run dev` shows a placeholder home page; CI file exists; all checks pass.
 
-- [ ] **T1 Schemas, validation, Markdown export (pure code, no LLM).**
+- [x] **T1 Schemas, validation, Markdown export (pure code, no LLM).**
   Zod schemas from SPEC §6 including referential-integrity checks (`superRefine`). `toMarkdown(spec)` exporter per SPEC §7.
   *Done when:* unit tests cover valid spec, each invalid case (duplicate IDs, bad references, dependency cycle, too few criteria), and a snapshot of the exported Markdown.
 
