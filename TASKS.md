@@ -15,7 +15,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   `src/lib/llm/`: `LLMProvider` interface, OpenAI-compatible client, provider registry from env, ordered fallback, 60s cooldown after 429, timeout, JSON extraction (strip code fences) + Zod validate + one repair retry (SPEC §8).
   *Done when:* tests with mocked `fetch` cover success, 429 then fallback, invalid JSON then repair success, repair failure then next provider, all providers failing (typed error).
 
-- [ ] **T3 Database and owner identity.**
+- [x] **T3 Database and owner identity.**
   Drizzle schema + migration for `specs` and `usage` (SPEC §5). Repository functions. Anonymous owner cookie (`ss_owner`, httpOnly UUID) set by middleware.
   *Done when:* tests (or a script against a local/Neon DB) cover create, get, list, delete scoped by owner; one owner cannot read another's spec.
 

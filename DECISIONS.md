@@ -77,3 +77,21 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 **Decision:** `src/env.test.ts` asserts the keys in `.env.example` match SPEC §14, in order.
 **Alternatives:** No test; validate env at runtime only (that comes in T2).
 **Consequence:** The test catches drift now. It must be updated if SPEC §14 changes.
+
+## 2026-10-30: Owner cookie is set by `src/proxy.ts`, not `middleware.ts`
+**Context:** SPEC §5 and CLAUDE.md say middleware. Next.js 16 deprecated `middleware.js` and renamed it to `proxy.js` (bundled docs, `01-app/03-api-reference/03-file-conventions/proxy.md`).
+**Decision:** The cookie logic lives in `src/proxy.ts` as `export function proxy`. The pure logic is in `src/lib/owner/owner.ts` (`resolveOwnerId`), so it is unit tested.
+**Alternatives:** `middleware.ts` with a deprecation warning on every build.
+**Consequence:** No warnings on Next 16. The cookie is `httpOnly`, `sameSite=lax`, one year, `secure` in production.
+
+## 2026-10-30: postgres-js driver, and PGlite for tests
+**Context:** SPEC §3 says Postgres on Neon with Drizzle, and the repo tests need a real database without a server.
+**Decision:** Production uses the `postgres` driver with `drizzle-orm/postgres-js` (`max: 1`). Tests run the generated migration on `@electric-sql/pglite`, an in-process Postgres, so the SQL is really executed.
+**Alternatives:** `@neondatabase/serverless` (HTTP driver, a Neon-only choice); mocking the Drizzle query chain (brittle, and it would not test scoping).
+**Consequence:** Two new dependencies, `postgres` (runtime) and `@electric-sql/pglite` (dev). The repo functions take a `Db` handle, so tests and production share the same code. `createDb` is typed as `Db`, so typecheck confirms the two drivers match.
+
+## 2026-10-30: Repo functions take the owner ID on every call
+**Context:** SPEC §5 says all queries are scoped by `owner_id`. A forgotten `where` would leak another owner's data.
+**Decision:** Every function in `src/lib/db/repo.ts` takes `ownerId` and filters on it. `getSpec` and `deleteSpec` return "not found" for another owner's ID, the same as a missing ID.
+**Alternatives:** A query builder wrapper that adds the filter automatically (more abstraction, which CLAUDE.md discourages).
+**Consequence:** The scoping test covers each function. The API layer (T4 and later) must pass the owner from the cookie and never from the request body.
