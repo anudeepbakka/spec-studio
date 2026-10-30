@@ -169,3 +169,8 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 ## Problem: Prerender errors on the home and spec pages with cacheComponents
 **What happened:** The dev overlay reported "Route / encountered uncached data during prerendering" and the same for `/specs/[id]`. The cookie and database reads ran before any request-time marker.
 **Fix:** Added `await connection()` at the top of both pages. The dev server log showed no new errors after the change.
+
+## Problem: connection() outside Suspense still blocked prerendering
+**What happened:** After the first fix, the dev overlay still reported "Route / encountered uncached data during prerendering", now pointing at the `await connection()` line itself. With `cacheComponents`, a request-time call outside a `Suspense` boundary blocks the static shell.
+**Fix:** The shells of `/` and `/specs/[id]` are static. The per-request reads (owner cookie, database, `connection()`) move into async children wrapped in `Suspense`.
+**Consequence:** Not-found specs now return HTTP 200 with the friendly not-found page, not 404. `notFound()` runs after the streamed shell has started, so the status cannot change. The UI is correct; the status code is a known gap against SPEC §12. Fixing it means checking ownership before the boundary, which would bring the blocking read back.

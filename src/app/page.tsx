@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { connection } from "next/server";
 import { currentOwnerId } from "@/lib/owner/current";
 import { getDeps } from "@/lib/server/deps";
@@ -5,12 +6,9 @@ import { listOwnedSpecs } from "@/lib/specs/service";
 import { NewRequestForm } from "@/components/NewRequestForm";
 import { RecentSpecs } from "@/components/RecentSpecs";
 
-// SPEC §11 Home: a new request and the owner's recent specs. Each visitor sees their own list, so it renders per request.
-export default async function Home() {
-  await connection();
-  const ownerId = await currentOwnerId();
-  const specs = ownerId ? await listOwnedSpecs(getDeps(), ownerId) : [];
-
+// SPEC §11 Home: a new request and the owner's recent specs.
+// The shell is static. The owner's list is read per request inside Suspense, so the page can prerender.
+export default function Home() {
   return (
     <main className="mx-auto w-full max-w-3xl space-y-10 px-4 py-8 sm:px-6 sm:py-10">
       <header className="space-y-2">
@@ -27,18 +25,29 @@ export default async function Home() {
         <NewRequestForm />
       </section>
 
-      <section aria-labelledby="recent-specs" className="space-y-4">
-        <h2 id="recent-specs" className="text-lg font-semibold">
-          Recent specs
-        </h2>
-        {specs.length === 0 ? (
-          <p className="text-sm text-neutral-600">No specs yet. Your specs are saved in this browser.</p>
-        ) : (
-          <RecentSpecs
-            specs={specs.map((spec) => ({ ...spec, createdAt: spec.createdAt.toISOString() }))}
-          />
-        )}
-      </section>
+      <Suspense fallback={<p className="text-sm text-neutral-600">Loading your specs...</p>}>
+        <RecentSection />
+      </Suspense>
     </main>
+  );
+}
+
+// Each visitor sees their own list, so this reads the cookie and database per request.
+async function RecentSection() {
+  await connection();
+  const ownerId = await currentOwnerId();
+  const specs = ownerId ? await listOwnedSpecs(getDeps(), ownerId) : [];
+
+  return (
+    <section aria-labelledby="recent-specs" className="space-y-4">
+      <h2 id="recent-specs" className="text-lg font-semibold">
+        Recent specs
+      </h2>
+      {specs.length === 0 ? (
+        <p className="text-sm text-neutral-600">No specs yet. Your specs are saved in this browser.</p>
+      ) : (
+        <RecentSpecs specs={specs.map((spec) => ({ ...spec, createdAt: spec.createdAt.toISOString() }))} />
+      )}
+    </section>
   );
 }
