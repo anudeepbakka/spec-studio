@@ -141,3 +141,36 @@ Append entries as the build proceeds (see CLAUDE.md). This file feeds docs/DESIG
 ## Problem: Neon tables missing on first request
 **What happened:** The first `POST /api/specs` returned 500. The log showed Postgres code `42P01` (undefined table). The migration had never been applied to the Neon dev database.
 **Fix:** Ran `npm run db:migrate` with `.env.local` loaded (`node --env-file=.env.local`). Errors now log only the error name and Postgres code. Driver messages are not logged, because Drizzle puts the SQL and its parameters, including the user's request, into them.
+
+## 2026-10-30: Spec pages read the database directly and call connection() first
+**Context:** `cacheComponents` is on. A page that reads cookies or the database without declaring a request-time dependency fails prerendering, and the dev overlay reports it.
+**Decision:** `/` and `/specs/[id]` call `await connection()` before reading the owner cookie and the database. The server pages call the repo and service functions directly, not their own API routes.
+**Alternatives:** Wrap the data reads in `Suspense` with a fallback (more markup for a small page); have server pages fetch their own API (an extra HTTP hop inside the same process).
+**Consequence:** Both pages render per request. That suits per-owner data, and it adds no caching.
+
+## 2026-10-30: The wizard step follows the saved status, with one local override
+**Context:** SPEC §11 has four steps. A reload or a return visit must land on the right step, and the status already records where the user is.
+**Decision:** `stepFor(status)` in `src/lib/specs/steps.ts` picks the step. The only local state is "Edit answers" and the live progress count. Every change ends with a reload of the record, so the UI shows what the server saved.
+**Alternatives:** A client-side state machine that tracks the steps itself (drifts from the server after a reload or a dropped connection).
+**Consequence:** Progress counts show only in the tab that started the run. Another tab, or a reload mid-run, shows "still in progress" with a "Check again" button until the run finishes or goes stale after 10 minutes.
+
+## 2026-10-30: Copy and download use the export endpoint
+**Context:** SPEC §7 says the Markdown is deterministic and snapshot-tested. Copy and download must give the same text as the `.md` file.
+**Decision:** Both actions read `GET /api/specs/:id/export`. The browser never builds Markdown itself.
+**Alternatives:** Render the Markdown in the browser (a second copy of the format to keep in sync).
+**Consequence:** Copy needs one extra request. It can fail when the clipboard is unavailable, so the UI points the user to Download.
+
+## 2026-10-30: Added the list, get and delete routes in T6
+**Context:** SPEC §10 lists `GET /api/specs`, `GET /api/specs/:id` and `DELETE /api/specs/:id`. T5 did not build them, and the home page and delete button need them.
+**Decision:** `GET /api/specs` returns summaries, `GET`/`DELETE /api/specs/:id` return the full record and remove it. All three are scoped by owner, and another owner's ID gets the same 404 as a missing one (tested in `manage.test.ts`).
+**Alternatives:** Keep deletion in a server action (the SPEC §10 API would then not match the code).
+**Consequence:** The API now matches SPEC §10.
+
+## Problem: Prerender errors on the home and spec pages with cacheComponents
+**What happened:** The dev overlay reported "Route / encountered uncached data during prerendering" and the same for `/specs/[id]`. The cookie and database reads ran before any request-time marker.
+**Fix:** Added `await connection()` at the top of both pages. The dev server log showed no new errors after the change.
+
+## Problem: connection() outside Suspense still blocked prerendering
+**What happened:** After the first fix, the dev overlay still reported "Route / encountered uncached data during prerendering", now pointing at the `await connection()` line itself. With `cacheComponents`, a request-time call outside a `Suspense` boundary blocks the static shell.
+**Fix:** The shells of `/` and `/specs/[id]` are static. The per-request reads (owner cookie, database, `connection()`) move into async children wrapped in `Suspense`.
+**Consequence:** Not-found specs now return HTTP 200 with the friendly not-found page, not 404. `notFound()` runs after the streamed shell has started, so the status cannot change. The UI is correct; the status code is a known gap against SPEC §12. Fixing it means checking ownership before the boundary, which would bring the blocking read back.

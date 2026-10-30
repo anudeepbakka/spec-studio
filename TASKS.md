@@ -27,7 +27,7 @@ Build in order, one per `/next`. Tick the box when done. Scope is in SPEC.md.
   `POST /api/specs/:id/generate` streams `progress` events, validates with Zod at the end (repair retry), saves, emits `spec` or `error`. Daily cap per owner via `usage` table (SPEC §10). `GET /api/specs/:id/export`.
   *Done when:* a full flow works from curl; a 429 is returned when the cap is hit; failures leave the spec in `failed` status with a message.
 
-- [ ] **T6 UI.**
+- [x] **T6 UI.**
   Home (new request + recent specs), spec page wizard (Request, Questions, Generating, Result), delete, copy, download Markdown. Pages per SPEC §11.
   *Done when:* the full flow works in the browser on desktop and mobile widths; every error state in SPEC §12 is visible and friendly.
 
